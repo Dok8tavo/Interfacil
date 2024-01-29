@@ -24,8 +24,10 @@ const EnumLiteral = misc.EnumLiteral;
 /// allEq: fn (Self, []const Self) bool,
 /// anyEq: fn (Self, []const Self) ?usize,
 /// eq: fn (Self, Self) bool,
-/// fielterEq: fn (Self, []const Self, []Self) ![]Self,
-/// filterAllEq: fn ([]const Self, []const Self, []Self) ![]Self,
+/// filteredAllEq: fn ([]const Self, []const Self, []Self) ![]Self,
+/// filterAllEq: fn ([]const Self, []Self) []Self,
+/// fielteredEq: fn (Self, []const Self, []Self) ![]Self,
+/// filterEq: fn (Self, []Self) ![]Self,
 /// equivalency_tests: struct {
 ///     reflexivity: fn ([]const Self) !void,
 ///     symmetry: fn ([]const Self) !void,
@@ -41,10 +43,10 @@ const EnumLiteral = misc.EnumLiteral;
 /// ## Clauses
 ///
 /// ```zig
-/// Self: type = Contractor,
 /// eq: fn (Self, Self) bool = equalsFn(Self),
 /// ub_checked: bool = true,
 /// sample: []const Self = emptySlice(Self),
+/// Self: type = Contractor,
 /// ```
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
@@ -63,32 +65,41 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
 
         /// This function checks if there's at least one item of the `slice` parameter that's
         /// equivalent to the `self` parameter.
-        pub fn anyEq(
-            self: Self,
-            slice: []const Self,
-        ) ?usize {
+        pub fn anyEq(self: Self, slice: []const Self) ?usize {
             return for (slice, 0..) |item, i| {
                 if (eq(self, item)) break i;
             } else null;
         }
 
+        /// This function counts how many items of the `slice` parameter are equivalent to the
+        /// `self` parameter.
+        pub fn countEq(self: Self, slice: []const Self) usize {
+            var count: usize = 0;
+            for (slice) |item| {
+                if (eq(self, item)) count += 1;
+            }
+            return count;
+        }
+        
         /// This function checks if the `self` parameter is equivalent to the `other` parameter.
         pub const eq: fn (self: Self, other: Self) bool =
             if (ub_checked) checkedEq else uncheckedEq;
 
-        /// This function copy all the items of the `from` parameter that aren't equivalent to the
-        /// `self` parameter into the `into` parameter.
-        pub fn filterEq(
-            self: Self,
-            from: []const Self,
-            into: []Self,
-        ) error{OutOfMemory}![]Self {
-            return try filterAllEq(&.{self}, from, into);
+        /// This function filter out all the elements of the `filtered` parameters that are
+        /// equivalent to one item of the `filters` parameter.
+        pub fn filterAllEq(filters: []const Self, filtered: []Self) []Self {
+            return filteredAllEq(filters, filtered, filtered) catch unreachable;
+        }
+
+        /// This function filter out all the elements of the `filtered` parameters that are
+        /// equivalent to the `self` parameter.
+        pub fn filterEq(self: Self, filtered: []Self) []Self {
+            return filteredEq(self, filtered, filtered) catch unreachable;
         }
 
         /// This function copy all the items of the `from` parameter that aren't equivalent to any
         /// item of the `filters` parameter into the `into` parameter.
-        pub fn filterAllEq(
+        pub fn filteredAllEq(
             filters: []const Self,
             from: []const Self,
             into: []Self,
@@ -100,6 +111,21 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 into[index] = item;
                 index += 1;
             } else into[0..index];
+        }
+
+        /// This function copy all the items of the `from` parameter that aren't equivalent to the
+        /// `self` parameter into the `into` parameter.
+        pub fn filteredEq(
+            self: Self,
+            from: []const Self,
+            into: []Self,
+        ) error{OutOfMemory}![]Self {
+            return try filteredAllEq(&[_]Self{self}, from, into);
+        }
+
+        /// This function checks if the `self` parameter isn't equivalent to the `other` parameter.
+        pub fn no(self: Self, other: Self) bool {
+            return !eq(self, other);
         }
 
         /// This function is either defined and declared by the user, or using `anyEq` by default.
@@ -325,4 +351,3 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
         }
     }.equals;
 }
-
