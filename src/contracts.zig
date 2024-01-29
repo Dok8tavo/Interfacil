@@ -5,9 +5,9 @@
 const misc = @import("misc.zig");
 const EnumLiteral = misc.EnumLiteral;
 
-/// This function takes the clauses from the `clauses` parameter of the interface, type-checks 
+/// This function takes the clauses from the `clauses` parameter of the interface, type-checks
 /// them, and gives them back for the generation of the namespace. It's considered responsible for
-/// providing thenecessary `clauses` and is often the type that receives the namespace, allowing 
+/// providing thenecessary `clauses` and is often the type that receives the namespace, allowing
 /// for the use of method syntax on the function of the interface.
 pub fn Contract(
     /// This is the type considered responsible for providing the necessary `clauses`. It's always
@@ -24,28 +24,6 @@ pub fn Contract(
         // Struct literals are weird sometimes. Using `@Type · @typeInfo` on them is a way to
         // ensure that we'll get a proper struct type.
         const Clauses: type = @Type(@typeInfo(@TypeOf(clauses)));
-
-        /// This function requires the `clauses` of the contract to provide a field with the same
-        /// name as `clause`, and of type `Clause`.
-        ///
-        /// # Usage
-        /// Inside the return of an interface:
-        ///
-        /// ```zig
-        /// // This will ask for a `comptime_int` to be passed as a field named `count`. If
-        /// // There's none, or if there's field named `count` but it isn't a `comptime_int`, it
-        /// // will trigger a compile error with a meaningful message.
-        /// pub const count = contract.require(.count, comptime_int);
-        /// ```
-        pub fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
-            const name: []const u8 = @tagName(clause);
-            if (!@hasField(Clauses, name)) misc.compileError(
-                "Interface of {s} requires a `.{s}` clause of type `{s}`!",
-                .{ @typeName(Contractor), name, @typeName(Clause) },
-            );
-
-            return typeChecked(name, Clause);
-        }
 
         /// This function asks the `clauses` of the contract for a field with the same name as
         /// the `clause` parameter, and of the same type as the `default_clause` parameter. If no
@@ -66,8 +44,43 @@ pub fn Contract(
             comptime default_clause: anytype,
         ) @TypeOf(default_clause) {
             const name = @tagName(clause);
-            if (!@hasField(Clauses, name)) return default_clause;
+            if (!hasClause(clause)) return default_clause;
             return typeChecked(name, @TypeOf(default_clause));
+        }
+
+        /// This function checks if a certain clause is given.
+        pub fn hasClause(comptime clause: EnumLiteral) bool {
+            return @hasField(Clauses, @tagName(clause));
+        }
+
+        /// This function checks if a certain clause is given and has the right type.
+        pub fn hasClauseTyped(comptime clause: EnumLiteral, comptime Clause: type) bool {
+            return hasClause(clause) and Clause == @TypeOf(@field(
+                clauses,
+                @tagName(clause),
+            ));
+        }
+
+        /// This function requires the `clauses` of the contract to provide a field with the same
+        /// name as `clause`, and of type `Clause`.
+        ///
+        /// # Usage
+        /// Inside the return of an interface:
+        ///
+        /// ```zig
+        /// // This will ask for a `comptime_int` to be passed as a field named `count`. If
+        /// // There's none, or if there's field named `count` but it isn't a `comptime_int`, it
+        /// // will trigger a compile error with a meaningful message.
+        /// pub const count = contract.require(.count, comptime_int);
+        /// ```
+        pub fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
+            const name: []const u8 = @tagName(clause);
+            if (!hasClause(clause)) misc.compileError(
+                "Interface of {s} requires a `.{s}` clause of type `{s}`!",
+                .{ @typeName(Contractor), name, @typeName(Clause) },
+            );
+
+            return typeChecked(name, Clause);
         }
 
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
