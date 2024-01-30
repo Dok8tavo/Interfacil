@@ -92,10 +92,6 @@ pub inline fn dbg(value: anytype) @TypeOf(value) {
     return todo(value);
 }
 
-pub fn emptySlice(comptime Item: type) []Item {
-    return &[_]Item{};
-}
-
 /// Enum literals should be preferred over strings when using metaprogramming. A string represents
 /// text, something that's supposed to be printed somewhere. For representing code, especially
 /// fields and declarations whose access syntax ressembles enum literals, it's just ideal. Let's
@@ -257,7 +253,7 @@ pub inline fn todo(
     }) else default;
 }
 
-/// This function generate an undefined value of the given type.
+/// This function returns an undefined value of the given type.
 pub inline fn undef(comptime Undefined: type) Undefined {
     return @as(Undefined, undefined);
 }

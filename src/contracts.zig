@@ -1,5 +1,5 @@
 //! Contracts are a very important part of interfaces. They're taking the clauses from the
-//! `clauses` parameter of the interface, type-check them, and give them back for the generation
+//! `clauses` parameter of the interface, type-check them, and give them back for the making
 //! of the namespace.
 
 const std = @import("std");
@@ -7,7 +7,7 @@ const misc = @import("misc.zig");
 const EnumLiteral = misc.EnumLiteral;
 
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
-/// them, and gives them back for the generation of the namespace. It's considered responsible for
+/// them, and gives them back in order to return an the namespace. It's considered responsible for
 /// providing thenecessary `clauses` and is often the type that receives the namespace, allowing
 /// for the use of method syntax on the function of the interface.
 pub fn Contract(
@@ -18,7 +18,7 @@ pub fn Contract(
     comptime Contractor: type,
     /// The clauses are a struct literal, whose fields will fullfill the requirement of the
     /// contract. It's through them that the user will provide the values and declarations needed,
-    /// or the options available, for generating the interface.
+    /// or the options available, for returning the interface.
     comptime clauses: anytype,
 ) type {
     return struct {
@@ -95,34 +95,4 @@ pub fn Contract(
             return clause;
         }
     };
-}
-
-pub fn addClause(
-    comptime clauses: anytype,
-    comptime clause: EnumLiteral,
-    comptime value: anytype,
-) AddClause(clauses, clause, value) {
-    return AddClause(clauses, clause, value){};
-}
-
-pub fn AddClause(
-    comptime clauses: anytype,
-    comptime clause: EnumLiteral,
-    comptime value: anytype,
-) type {
-    comptime {
-        const Field = std.builtin.Type.StructField;
-        const Type = @TypeOf(value);
-        const name = @tagName(clause);
-        const alignment = @alignOf(Type);
-        var info = @typeInfo(@TypeOf(clauses));
-        info.Struct.fields = info.Struct.fields ++ &[_]Field{Field{
-            .alignment = alignment,
-            .type = Type,
-            .name = name,
-            .default_value = &value,
-            .is_comptime = true,
-        }};
-        return @Type(info);
-    }
 }
