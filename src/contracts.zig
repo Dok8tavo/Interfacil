@@ -2,6 +2,7 @@
 //! `clauses` parameter of the interface, type-check them, and give them back for the generation
 //! of the namespace.
 
+const std = @import("std");
 const misc = @import("misc.zig");
 const EnumLiteral = misc.EnumLiteral;
 
@@ -94,4 +95,34 @@ pub fn Contract(
             return clause;
         }
     };
+}
+
+pub fn addClause(
+    comptime clauses: anytype,
+    comptime clause: EnumLiteral,
+    comptime value: anytype,
+) AddClause(clauses, clause, value) {
+    return AddClause(clauses, clause, value){};
+}
+
+pub fn AddClause(
+    comptime clauses: anytype,
+    comptime clause: EnumLiteral,
+    comptime value: anytype,
+) type {
+    comptime {
+        const Field = std.builtin.Type.StructField;
+        const Type = @TypeOf(value);
+        const name = @tagName(clause);
+        const alignment = @alignOf(Type);
+        var info = @typeInfo(@TypeOf(clauses));
+        info.Struct.fields = info.Struct.fields ++ &[_]Field{Field{
+            .alignment = alignment,
+            .type = Type,
+            .name = name,
+            .default_value = &value,
+            .is_comptime = true,
+        }};
+        return @Type(info);
+    }
 }
