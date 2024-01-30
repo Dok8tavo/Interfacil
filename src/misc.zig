@@ -224,7 +224,7 @@ pub fn Result(comptime P: type, comptime F: type) type {
         ///
         /// ## Usage
         /// ```zig
-        /// const fail = undef(*Fail);
+        /// var fail = undef(Fail);
         /// const pass = result.nab(&fail) orelse {
         ///     fail.dump(stderr);
         ///     ...
