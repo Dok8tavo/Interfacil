@@ -287,8 +287,7 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 .Type,
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
-                .ComptimeFloat,
-                .Float => misc.compileError(
+                .ComptimeFloat, .Float => misc.compileError(
                     "The `{s}.anyEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
@@ -370,3 +369,48 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
     }.equals;
 }
 
+pub const Order = enum(i3) {
+    backwards = -1,
+    equals = 0,
+    forwards = 1,
+
+    pub usingnamespace Equivalent(Order, .{});
+};
+
+/// TODO: doc
+pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
+    return struct {
+        fn anyCompare(a: anytype, b: @TypeOf(a)) Order {
+            const A = @TypeOf(a);
+            const info = @typeInfo(A);
+            return switch (info) {
+                .Int, .ComptimeInt => if (a == b)
+                    .equals
+                else if (a < b)
+                    .forwards
+                else
+                    .backwards,
+                .Bool => anyCompare(@intFromBool(a), @intFromBool(b)),
+                .Enum => anyCompare(@intFromEnum(a), @intFromEnum(b)),
+                .ErrorSet => anyCompare(@intFromError(a), @intFromError(b)),
+                .Pointer => |Pointer| switch (Pointer.size) {
+                    .One => anyCompare(a.*, b.*),
+                    // TODO: better errors!
+                    else => misc.compileError(
+                        "The `{s}.anyCompare` function can't compare complex types like `{s}`!",
+                        .{ @typeName(T), @typeName(A) },
+                    ),
+                },
+                // TODO: handle each case individually for better errors!
+                else => misc.compileError(
+                    "The `{s}.anyCompare` function can't compare complex types like `{s}`!",
+                    .{ @typeName(T), @typeName(A) },
+                ),
+            };
+        }
+
+        pub fn compare(self: T, other: T) Order {
+            return anyCompare(self, other);
+        }
+    }.compare;
+}
