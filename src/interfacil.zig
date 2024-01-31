@@ -284,10 +284,14 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 .EnumLiteral,
                 .ErrorSet,
                 .Int,
-                .Float,
                 // Types are their id, which is a numerical value.
                 .Type,
                 => a == b,
+                // Floating points are the exception: they shouldn't be compared using `==`.
+                .Float => misc.compileError(
+                    "The `{s}.anyEquals` function can't compare floating point `{s}`!",
+                    .{ @typeName(T), @typeName(A) },
+                ),
                 // The following are single-value types, therefore they allays equals themselves.
                 .Void, .Null, .Undefined => true,
                 // Error unions, optionals, and unions are all sum types. Two sum type instances
@@ -364,182 +368,4 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
             return anyEquals(a, b);
         }
     }.equals;
-}
-
-pub const PartialOrder = enum {
-    none,
-    forwards,
-    equals,
-    backwards,
-
-    pub usingnamespace Equivalent(PartialOrder, .{});
-};
-
-/// # WithPartialOrder
-///
-/// This interface is useful when dealing with a function with two parameter of the same type that
-/// happen to be a partial order. It provides a few unit tests, wraps the partial order into a few
-/// ub checks, and provides a few additional functions.
-///
-/// By default this is the partial order function is returned by `partialCompareFn`.
-///
-/// ## Partial Order
-///
-/// A partial order is a function `ord: fn (Self, Self) bool` that is:
-/// - reflexive: `∀x : ord(x, x)`,
-/// - antisymmetric: `∀x, y : ord(x, y) and ord(y, x) => eq(x, y)`
-/// - transitive: `∀x, y, z : ord(x, y) and ord(y, z) => ord(x, z)`
-///
-/// ## API
-///
-/// ```zig
-/// usingnamespace Equivalent(Contractor, clauses),
-/// compare: fn (self: Self, other: Self) PartialOrder,
-/// le: fn (self: Self, other: Self) PartialOrder,
-/// lt: fn (self: Self, other: Self) PartialOrder,
-/// ge: fn (self: Self, other: Self) PartialOrder,
-/// gt: fn (self: Self, other: Self) PartialOrder,
-/// Reversed: type, // reversed interface
-/// ```
-///
-/// ## Clauses
-///
-/// ```zig
-/// compare: fn (self: Self, other: Self) PartialOrder = defaultCompare,
-/// sample: []const Self = &[_]Self{},
-/// Self: type = Contractor,
-/// ub_checked: bool = true,
-/// ```
-pub fn WithPartialOrder(comptime Contractor: type, comptime clauses: anytype) type {
-    return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
-        pub usingnamespace WithEquivalency;
-
-        pub const compare: fn (self: Self, other: Self) PartialOrder =
-            contract.default(.compare, defaultCompare);
-
-        pub fn le(self: Self, other: Self) bool {
-            return compare(self, other).anyEq(&.{ .forwards, .equals });
-        }
-
-        pub fn lt(self: Self, other: Self) bool {
-            return compare(self, other).eq(.forwards);
-        }
-
-        pub fn ge(self: Self, other: Self) bool {
-            return compare(self, other).anyEq(&.{ .backwards, .equals });
-        }
-
-        pub fn gt(self: Self, other: Self) bool {
-            return compare(self, other).eq(.backwards);
-        }
-
-        pub const Reversed = WithPartialOrder(Contractor, .{
-            .compare = reverseCompare,
-            .ub_checked = ub_checked,
-            .sample = sample,
-            .Self = Self,
-        });
-
-        const defaultCompare: fn (Self, Self) PartialOrder = partialCompareFn(Self);
-
-        fn equals(self: Self, other: Self) bool {
-            return compare(self, other).eq(.equals);
-        }
-
-        fn reverseCompare(self: Self, other: Self) PartialOrder {
-            return compare(other, self);
-        }
-
-        const sample: []const Self = contract.default(.sample, @as([]const Self, &.{}));
-        const ub_checked: bool = contract.default(.ub_checked, true);
-
-        const WithEquivalency = Equivalent(Contractor, .{
-            .eq = equals,
-            .ub_checked = ub_checked,
-            .sample = sample,
-            .Self = Self,
-        });
-
-        const Self: type = contract.default(.Self, Contractor);
-    };
-}
-
-/// This function returns a comparison function.
-pub fn partialCompareFn(comptime T: type) PartialOrder {
-    return struct {
-        fn productType(comptime Sum: type) noreturn {
-            misc.compileError(
-                "Can't implement `{s}.anyPartialCompare` function for the product type `{s}`!",
-                .{ @typeName(T), @typeName(Sum) },
-            );
-        }
-
-        fn anyPartialCompare(a: anytype, b: @TypeOf(a)) PartialOrder {
-            const A = @TypeOf(a);
-            const info = @typeInfo(A);
-            return switch (info) {
-                // The following types are considered numerical values.
-                .Bool => anyPartialCompare(@intFromBool(a), @intFromBool(b)),
-                .Int, .Float, .ComptimeInt, .ComptimeFloat => if (a == b)
-                    .equals
-                else if (a < b)
-                    .forwards
-                else
-                    .backwards,
-                .Enum => anyPartialCompare(@intFromEnum(a), @intFromEnum(b)),
-                .ErrorSet => anyPartialCompare(@intFromError(a), @intFromError(b)),
-                // The following types are single-value, therefore always equals to themselves.
-                .Void, .Null, .Undefined => .equals,
-                // A sum type can compare two variants of itself.
-                .Union => |Union| if (Union.tag_type) |Tag| {
-                    const variant_a = @field(Tag, @tagName(a));
-                    const variant_b = @field(Tag, @tagName(b));
-                    // There's no obvious way (more than one is trivial) to compare two different
-                    // variants.
-                    if (variant_a != variant_b) return .none;
-                    const unwrapped_a = @field(a, @tagName(a));
-                    const unwrapped_b = @field(b, @tagName(b));
-                    return anyPartialCompare(unwrapped_a, unwrapped_b);
-                } else misc.compileError(
-                    "Can't implement `{s}.anyPartialCompare` function for the untagged union `{s}`!",
-                    .{ @typeName(T), @typeName(A) },
-                ),
-                // An error _union_ is the union of a value and an error. It's a sum type.
-                .ErrorUnion => if (a) |yes_a| {
-                    return if (b) |yes_b|
-                        anyPartialCompare(yes_a, yes_b)
-                    else
-                        .none;
-                } else |no_a| if (b) .none else |no_b| anyPartialCompare(no_a, no_b),
-                // An optional is like a union of a void variant, and a variant of the optional's
-                // child type. It's a sum type.
-                .Optional => if (a) |yes_a| {
-                    return if (b) |yes_b|
-                        anyPartialCompare(yes_a, yes_b)
-                    else
-                        .none;
-                } else if (b) |_| .none else .equals,
-                .Pointer => |Pointer| switch (Pointer.size) {
-                    // Pointers are semantically meant to not hold any relevant data, but point to it.
-                    // So we're effectively not comparing pointers, but the data they're pointing to.
-                    .One => anyPartialCompare(a.*, b.*),
-                    // Pointers to many data are similar to product types.
-                    .Slice, .Many, .C => productType(A),
-                },
-                // Product types!
-                .Vector, .Struct, .Array => productType(A),
-                // The following types, idk what to do, if there's anything to do.
-                .Type, .AnyFrame, .Fn, .Frame, .Opaque, .NoReturn => misc.compileError(
-                    "Can't implement `{s}.anyEquals` function for type `{s}` which is a `.{s}`!",
-                    .{ @typeName(T), @typeName(A), @tagName(info) },
-                ),
-            };
-        }
-
-        pub fn call(self: T, other: T) PartialOrder {
-            return anyPartialCompare(self, other);
-        }
-    }.call;
 }

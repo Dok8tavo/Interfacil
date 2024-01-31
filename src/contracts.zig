@@ -7,7 +7,7 @@ const misc = @import("misc.zig");
 const EnumLiteral = misc.EnumLiteral;
 
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
-/// them, and gives them back in order to return an the namespace. It's considered responsible for
+/// them, and gives them back in order to return the namespace. It's considered responsible for
 /// providing thenecessary `clauses` and is often the type that receives the namespace, allowing
 /// for the use of method syntax on the function of the interface.
 pub fn Contract(
