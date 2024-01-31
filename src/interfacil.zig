@@ -278,7 +278,6 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
             return switch (info) {
                 // The following types are considered numerical values.
                 .Bool,
-                .ComptimeFloat,
                 .ComptimeInt,
                 .Enum,
                 .EnumLiteral,
@@ -288,6 +287,7 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 .Type,
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
+                .ComptimeFloat,
                 .Float => misc.compileError(
                     "The `{s}.anyEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
@@ -369,3 +369,4 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
         }
     }.equals;
 }
+
