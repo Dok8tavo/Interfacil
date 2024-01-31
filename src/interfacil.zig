@@ -377,7 +377,13 @@ pub const Order = enum(i3) {
     pub usingnamespace Equivalent(Order, .{});
 };
 
-/// TODO: doc
+/// This function is returns a comparison function. A comparison function takes two parameters of
+/// the same type and returns an `Order` enum value. It can be used to define an order, a relation
+/// that's guaranteed to be:
+/// - reflexive: `∀x : ord(x, x)`,
+/// - antisymmetric: `∀x, y : (ord(x, y) and ord(y, x)) => x == y`,
+/// - transitive: `∀x, y, z : (ord(x, y) and ord(y, z)) => ord(x, z)`,
+/// It'll be meaningful in the context of values, but not much when using complex types.
 pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
     return struct {
         fn anyCompare(a: anytype, b: @TypeOf(a)) Order {
