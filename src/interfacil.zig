@@ -289,7 +289,7 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
                 .Float => misc.compileError(
-                    "The `{s}.anyEquals` function can't compare floating point `{s}`!",
+                    "The `{s}.anyEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
                 // The following are single-value types, therefore they allays equals themselves.
