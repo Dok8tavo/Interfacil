@@ -223,10 +223,10 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             pub fn transitivity(sample: []const Self) TransitivityError!void {
                 if (!contract.hasClause(.eq)) return;
                 for (sample) |x| for (sample) |y| for (sample) |z|
-                    //    ∀x, y, z : ((x === y) & (y === z)) => (x === z)
-                    // => ∀x, y, z : !((x === y) & (y === z)) | (x === z)
-                    // => ∀x, y, z : (!(x === y) | !(y === z)) | (x === z)
-                    // => ∀x, y, z : (x !== y) | (y !== z) | (x === z)
+                    //     ∀x, y, z : ((x === y) & (y === z)) => (x === z)
+                    // <=> ∀x, y, z : !((x === y) & (y === z)) | (x === z)
+                    // <=> ∀x, y, z : (!(x === y) | !(y === z)) | (x === z)
+                    // <=> ∀x, y, z : (x !== y) | (y !== z) | (x === z)
                     if (!testEq(x, y) or !testEq(y, z) or testEq(x, z))
                         return TransitivityError.EqualityIsNotTransitive;
             }
