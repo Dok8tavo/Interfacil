@@ -328,3 +328,87 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
         }
     }.equals;
 }
+
+/// This function returns a partial equality function. This partial equality is guaranteed to be:
+/// - symmetric `∀x, y : equals(x, y) == equals(y, x)`
+/// - transitive `∀x, y, z : (equals(x, y) and equals(y, z)) => equals(x, z)`
+pub fn partiallyEqualsFn(comptime T: type) fn (T, T) ?bool {
+    return struct {
+        fn anyPartiallyEquals(a: anytype, b: @TypeOf(a)) ?bool {
+            const A = @TypeOf(a);
+            const info = @typeInfo(A);
+            return switch (info) {
+                .Bool,
+                .ComptimeInt,
+                .Enum,
+                .EnumLiteral,
+                .ErrorSet,
+                .Int,
+                .Type,
+                => a == b,
+                .Float, .ComptimeFloat => misc.compileError(
+                    "The `{s}.anyPartialEquals` function shouldn't compare floating point `{s}`!",
+                    .{ @typeName(T), @typeName(A) },
+                ),
+                .Void => true,
+                .Null, .Undefined => null,
+                .Optional => {
+                    const yes_a = a orelse return null;
+                    const yes_b = b orelse return null;
+                    return anyPartiallyEquals(yes_a, yes_b);
+                },
+                .ErrorUnion => {
+                    const yes_a = a catch return null;
+                    const yes_b = b catch return null;
+                    return anyPartiallyEquals(yes_a, yes_b);
+                },
+                .Union => |Union| if (Union.tag_type) |Tag| {
+                    const tag_a = @field(Tag, @tagName(a));
+                    const tag_b = @field(Tag, @tagName(b));
+                    if (tag_a != tag_b) return null;
+                    const payload_a = @field(a, @tagName(tag_a));
+                    const payload_b = @field(b, @tagName(tag_b));
+                    return anyPartiallyEquals(payload_a, payload_b);
+                } else misc.compileError("", .{}),
+                .Struct => |Struct| {
+                    var has_null = false;
+                    return inline for (Struct.fields) |field| {
+                        const field_a = @field(a, field.name);
+                        const field_b = @field(b, field.name);
+                        const equality = anyPartiallyEquals(field_a, field_b);
+                        if (equality) |e| {
+                            if (!e) break false;
+                        } else has_null = true;
+                    } else if (has_null) null else true;
+                },
+                .Vector, .Array => {
+                    var has_null = false;
+                    return inline for (a, b) |c, d| {
+                        if (anyPartiallyEquals(c, d)) |equality| {
+                            if (!equality) break false;
+                        } else has_null = true;
+                    } else if (has_null) null else true;
+                },
+                .Pointer => |Pointer| switch (Pointer.size) {
+                    .One => anyPartiallyEquals(a.*, b.*),
+                    .Slice => {
+                        var has_null = false;
+                        return if (a.len != b.len) null else for (a, b) |c, d| {
+                            if (anyPartiallyEquals(c, d)) |equality| {
+                                if (!equality) break false;
+                            } else has_null = true;
+                        } else if (has_null) null else true;
+                    },
+                },
+                .AnyFrame, .Frame, .Fn, .Opaque, .NoReturn => misc.compileError(
+                    "Can't implement `{s}.anyEquals` function for type `{s}` which is a `.{s}`!",
+                    .{ @typeName(T), @typeName(A), @tagName(info) },
+                ),
+            };
+        }
+
+        pub fn partiallyEquals(a: T, b: T) ?bool {
+            return anyPartiallyEquals(a, b);
+        }
+    }.partiallyEquals;
+}
