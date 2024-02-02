@@ -329,6 +329,24 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
     }.equals;
 }
 
+pub fn PartiallyEquivalent(comptime Contractor: type, comptime clauses: anytype) type {
+    return struct {
+        const contract = contracts.Contract(Contractor, clauses);
+
+        /// This function checks if the `self` parameter is equivalent to the `other` parameter.
+        pub const eq: fn (self: Self, other: Self) ?bool =
+            if (ub_checked) checkedEq else uncheckedEq;
+
+        // TODO
+        const checkedEq = uncheckedEq;
+        const uncheckedEq: fn (self: Self, other: Self) ?bool =
+            contract.default(.eq, partiallyEqualsFn(Self));
+
+        const ub_checked: bool = contract.default(.un_checked, true);
+        const Self: type = contract.default(.Self, Contractor);
+    };
+}
+
 /// This function returns a partial equality function. This partial equality is guaranteed to be:
 /// - symmetric `∀x, y : equals(x, y) == equals(y, x)`
 /// - transitive `∀x, y, z : (equals(x, y) and equals(y, z)) => equals(x, z)`
