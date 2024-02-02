@@ -356,20 +356,27 @@ pub fn partiallyEqualsFn(comptime T: type) fn (T, T) ?bool {
             const A = @TypeOf(a);
             const info = @typeInfo(A);
             return switch (info) {
+                // The following are considered numerical values
                 .Bool,
                 .ComptimeInt,
                 .Enum,
                 .EnumLiteral,
-                .ErrorSet,
                 .Int,
+                // Types are their id, which is a numerical value.
                 .Type,
                 => a == b,
+                // Floating points are the exception: they shouldn't be compared using `==`.
                 .Float, .ComptimeFloat => misc.compileError(
                     "The `{s}.anyPartialEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
+                // Void is a single-value type.
                 .Void => true,
-                .Null, .Undefined => null,
+                // `null`, `undefined` and errors should not be comparable to anything, they're not
+                // representing data, or zero-sized data, but the absence of data.
+                .Null, .Undefined, .ErrorSet => null,
+                // Comparing two values of different types doesn't make much sense, that's why sum
+                // types must return null when two of them don't have the same variant active.
                 .Optional => {
                     const yes_a = a orelse return null;
                     const yes_b = b orelse return null;
@@ -388,6 +395,21 @@ pub fn partiallyEqualsFn(comptime T: type) fn (T, T) ?bool {
                     const payload_b = @field(b, @tagName(tag_b));
                     return anyPartiallyEquals(payload_a, payload_b);
                 } else misc.compileError("", .{}),
+                // Structs, vectors and array are product types. We are comparing their members one
+                // by one, as pairs, following these rule:
+                // 1. ∃(m1, m2) in (p1, p2) : (equals(m1, m2) == false)
+                //   => (equals(p1, p2) == false)
+                // 2. ∃(m1, m2) in (p1, p2) : (equals(m1, m2) == null)
+                //   => ((equals(p1, p2) == false) or (equals(p1, p2) == null))
+                // 3. ∀(m1, m2) in (p1, p2) : (equals(m1, m2) == true)
+                //   => (equals(p1, p2) == true)
+                //
+                // In human language:
+                // 1. If a pair of members returns false, then the pair of products returns false.
+                // 2. If a pair of members returns null, then the pair of products returns false or
+                //    null.
+                // 3. If all the pairs of members return true, then the pair of products return
+                //    true.
                 .Struct => |Struct| {
                     var has_null = false;
                     return inline for (Struct.fields) |field| {
@@ -408,7 +430,12 @@ pub fn partiallyEqualsFn(comptime T: type) fn (T, T) ?bool {
                     } else if (has_null) null else true;
                 },
                 .Pointer => |Pointer| switch (Pointer.size) {
+                    // Pointers are semantically meant to not hold any relevant data, but point to
+                    // it. So we're effectively not comparing pointers, but the data they're
+                    // pointing to.
                     .One => anyPartiallyEquals(a.*, b.*),
+                    // Any multi-item pointer is similar to a pointer to an array. We can emulate
+                    // this when both pointers have the same length. Else we can just return null.
                     .Slice => {
                         var has_null = false;
                         return if (a.len != b.len) null else for (a, b) |c, d| {
@@ -417,7 +444,15 @@ pub fn partiallyEqualsFn(comptime T: type) fn (T, T) ?bool {
                             } else has_null = true;
                         } else if (has_null) null else true;
                     },
+                    // If they were terminated, other pointers could emulate slices, but I'm not
+                    // sure how I should test for equality with the sentinel.
+                    else => misc.compileError(
+                        "Can't implement `{s}.anyPartiallyEquals` function for type `{s}` which" ++
+                            " is a {s}-pointer to `{s}`!",
+                        .{ @typeName(T), @tagName(Pointer.size), @typeName(Pointer.child) },
+                    ),
                 },
+                // The following types, idk what to do, if there's anything to do.
                 .AnyFrame, .Frame, .Fn, .Opaque, .NoReturn => misc.compileError(
                     "Can't implement `{s}.anyEquals` function for type `{s}` which is a `.{s}`!",
                     .{ @typeName(T), @typeName(A), @tagName(info) },
