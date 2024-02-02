@@ -9,7 +9,7 @@ or inheritance, there's no dynamic dispatch happening here. If you want runtime 
 these repos:
 
 - [zig_interfaces by yglcode](https://github.com/yglcode/zig_interfaces),
-- [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
+- [zimpl by permutationlock](https://github.com/permutationlock/zimpl) has both static and dynamic dispatch,
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
 This is more in response of [this issue](https://github.com/ziglang/zig/issues/1268).
