@@ -2,253 +2,326 @@ const misc = @import("../misc.zig");
 const contracts = @import("../contracts.zig");
 
 /// # Equivalent
-/// This interface is useful when dealing with a function with two parameter of the same type that
-/// happen to be an equivalency. It provides a few unit tests, wraps the equivalency into a few ub
-/// checks, and provides a few additional functions.
-///
-/// By default this is the equivalency function is an equality function returned by `equalsFn`.
-///
-/// ## Equivalency
-///
-/// An equivalency is a function `eq: fn (Self, Self) bool` that is:
-///
-/// - reflexive: `∀x : eq(x, x)`,
-/// - symmetric: `∀x, y : eq(x, y) == eq(y, x)`,
-/// - transitive: `∀x, y, z : eq(x, y) and eq(y, z) => eq(x, z)`
-///
-/// ## API
-///
-/// ```zig
-/// allEq: fn (Self, []const Self) bool,
-/// anyEq: fn (Self, []const Self) ?usize,
-/// eq: fn (Self, Self) bool,
-/// filteredAllEq: fn ([]const Self, []const Self, []Self) ![]Self,
-/// filterAllEq: fn ([]const Self, []Self) []Self,
-/// fielteredEq: fn (Self, []const Self, []Self) ![]Self,
-/// filterEq: fn (Self, []Self) ![]Self,
-/// equivalency_tests: struct {
-///     reflexivity: fn ([]const Self) !void,
-///     symmetry: fn ([]const Self) !void,
-///     transitivity: fn ([]const Self) !void,
-///
-///     test "Equivalency is reflexive";
-///     test "Equivalency is symmetric";
-///     test "Equivalency is transitive";
-///     test "Equivalency";
-/// },
-/// ```
-///
-/// ## Clauses
-///
-/// ```zig
-/// eq: fn (Self, Self) bool = equalsFn(Self),
-/// ub_checked: bool = true,
-/// sample: []const Self = &[_]Self{},
-/// Self: type = Contractor,
-/// ```
+/// 
+/// The `Equivalent` interface relies on the existence of an equivalency function. A function
+/// of type `fn (T, T) bool` that's assumed to be:
+/// 
+/// - reflexive: `∀x : eq(x, x)`
+/// - symmetric: `∀x, y : eq(x, y) == eq(y, x)`
+/// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
-        /// This function checks if all the items of the `slice` parameter are equivalent to the
-        /// `self` parameter.
-        pub fn allEq(
+        /// This function is the equivalency function from the `Equivalent` interface. It's assumed
+        /// to be:
+        /// - reflexive: `∀x : eq(x, x)`
+        /// - symmetric: `∀x, y : eq(x, y) == eq(y, x)`
+        /// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
+        pub const eq: fn (self: Self, other: Self) bool = contract.default(.eq, equalsFn(Self));
+
+        /// This function is the non-equivalency function from the `Equivalent` interface. It's
+        /// assumed to be:
+        /// - antireflexive: `∀x : !no(x, x)`
+        /// - symmetric: `∀x, y : no(x, y) == no(y, x)`
+        /// - the opposite of `eq`: `∀x, y : eq(x, y) != no(x, y)`
+        pub const no: fn (self: Self, other: Self) bool = contract.default(.no, defaultNo);
+
+        /// This function checks that all items of the `slice` parameter are equivalent to the
+        /// `self` parameter, i.e. that `eq(self, item) == true`.
+        ///
+        /// It basically returns `∀x in slice : eq(self, x)`.
+        pub const allEq: fn (self: Self, slice: []const Self) bool =
+            contract.default(.allEq, defaultAllEq);
+
+        /// This function checks that there's at least one item of the `slice` parameter that's
+        /// equivalent to the `self` parameter, i.e. that `eq(self, item) == true`.
+        ///
+        /// It basically returns `∃x in slice : eq(self, x)`.
+        pub const anyEq: fn (self: Self, slice: []const Self) bool =
+            contract.default(.allEq, defaultAnyEq);
+
+        /// This function checks that none of the items of the `slice` parameter is equivalent to
+        /// the `self` parameter, i.e. that `eq(self, item) == false`.
+        ///
+        /// It basically returns `∀x in slice : no(self, x)`.
+        pub const allNo: fn (self: Self, slice: []const Self) bool =
+            contract.default(.allNo, defaultAllNo);
+
+        /// This function checks that there's at least one item of the `slice` parameter that's
+        /// not equivalent to the `self` parameter, i.e. that `eq(self, item) == false`.
+        ///
+        /// It basically returns `∃x in slice : no(self, x)`.
+        pub const anyNo: fn (self: Self, slice: []const Self) bool =
+            contract.default(.anyNo, defaultAnyNo);
+
+        /// This function returns the items of the `slice` parameter that are equivalent to the
+        /// `self` parameter. A successful return is guaranteed to be a slice with:
+        ///
+        /// - `∀x in result : eq(self, x)`
+        /// - `allEq(self, result)`
+        /// - `!anyNo(self, result)`
+        pub const filteredEq: fn (
             self: Self,
             slice: []const Self,
-        ) bool {
-            return for (slice) |item| {
-                if (!eq(self, item)) break false;
-            } else true;
-        }
-
-        /// This function checks if there's at least one item of the `slice` parameter that's
-        /// equivalent to the `self` parameter.
-        pub fn anyEq(self: Self, slice: []const Self) ?usize {
-            return for (slice, 0..) |item, i| {
-                if (eq(self, item)) break i;
-            } else null;
-        }
-
-        /// This function counts how many items of the `slice` parameter are equivalent to the
-        /// `self` parameter.
-        pub fn countEq(self: Self, slice: []const Self) usize {
-            var count: usize = 0;
-            for (slice) |item| {
-                if (eq(self, item)) count += 1;
-            }
-            return count;
-        }
-
-        /// This function checks if the `self` parameter is equivalent to the `other` parameter.
-        pub const eq: fn (self: Self, other: Self) bool =
-            if (ub_checked) checkedEq else uncheckedEq;
-
-        /// This function filter out all the elements of the `filtered` parameters that are
-        /// equivalent to one item of the `filters` parameter.
-        pub fn filterAllEq(filters: []const Self, filtered: []Self) []Self {
-            return filteredAllEq(filters, filtered, filtered) catch unreachable;
-        }
-
-        /// This function filter out all the elements of the `filtered` parameters that are
-        /// equivalent to the `self` parameter.
-        pub fn filterEq(self: Self, filtered: []Self) []Self {
-            return filteredEq(self, filtered, filtered) catch unreachable;
-        }
-
-        /// This function copy all the items of the `from` parameter that aren't equivalent to any
-        /// item of the `filters` parameter into the `into` parameter.
-        pub fn filteredAllEq(
-            filters: []const Self,
-            from: []const Self,
             into: []Self,
-        ) error{OutOfMemory}![]Self {
-            var index: usize = 0;
-            return for (from) |item| {
-                if (anyEq(item, filters)) |_| continue;
-                if (index == into.len) break error.OutOfMemory;
-                into[index] = item;
-                index += 1;
-            } else into[0..index];
-        }
+        ) BoundsError![]Self = contract.default(.filteredEq, defaultFilteredEq);
 
-        /// This function copy all the items of the `from` parameter that aren't equivalent to the
-        /// `self` parameter into the `into` parameter.
-        pub fn filteredEq(
+        /// This function returns the items of the `slice` parameter that are not equivalent to
+        /// the `self` parameter. A successful return is guaranteed to be a slice with:
+        ///
+        /// - `∀x in result : no(self, x)`,
+        /// - `allNo(self, result)`
+        /// - `!anyEq(self, result)`
+        pub const filteredNo: fn (
             self: Self,
-            from: []const Self,
+            slice: []const Self,
             into: []Self,
-        ) error{OutOfMemory}![]Self {
-            return try filteredAllEq(&[_]Self{self}, from, into);
-        }
+        ) BoundsError![]Self = contract.default(.filteredNo, defaultFilteredNo);
 
-        /// This function checks if the `self` parameter isn't equivalent to the `other` parameter.
-        pub fn no(self: Self, other: Self) bool {
+        /// This function is a shorthand for `filteredEq(self, slice, silce) catch unreachable`
+        pub const filterEq: fn (self: Self, slice: []Self) []Self =
+            contract.default(.filterEq, defaultFilterEq);
+
+        /// This function is a shorthand for `filteredNo(self, slice, silce) catch unreachable`
+        pub const filterNo: fn (self: Self, slice: []Self) []Self =
+            contract.default(.filterNo, defaultFilterNo);
+
+        const Self: type = contract.default(.Self, Contractor);
+        const sample: []const Self = contract.default(.sample, default_sample);
+
+        fn defaultNo(self: Self, other: Self) bool {
             return !eq(self, other);
         }
 
-        /// This function is either defined and declared by the user, or using `anyEq` by default.
-        const uncheckedEq: fn (Self, Self) bool = contract.default(.eq, defaultEq);
-
-        /// This boolean decides whether the program should check during runtime if equality
-        /// actually is symmetric and reflexive. If not, it'll panic in debug mode, with a
-        /// meaningful error message, in other modes it'll reach unreachable.
-        ///
-        /// As those checks have very bad complexity they're only done on calls for two elements,
-        /// only `eq` and `no`. As there's no way to check for transitivity with two elements on
-        /// a symmetric and reflexive relation, transitivity is not checked during runtime.
-        const ub_checked: bool = contract.default(.ub_checked, true);
-
-        const defaultEq: fn (Self, Self) bool = equalsFn(Self);
-
-        /// This function wraps the `eq` function inside checks for symmetry and reflexivity. Those
-        /// checks are only available in debug builds. They slow down debug builds but speed up
-        /// unsafe builds.
-        fn checkedEq(self: Self, other: Self) bool {
-            const self_other = uncheckedEq(self, other);
-            const other_self = uncheckedEq(other, self);
-            const is_symmetric = self_other == other_self;
-
-            misc.checkUB(!is_symmetric,
-                \\The `{s}.eq` function isn't symmetric:
-                \\    {any} {s} {any}
-                \\    {any} {s} {any}
-            , .{
-                @typeName(Self),
-                self,
-                if (self_other) "===" else "!==",
-                other,
-                other,
-                if (other_self) "===" else "!==",
-                self,
-            });
-
-            inline for (.{ self, other }) |item| {
-                const is_reflexive = uncheckedEq(item, item);
-                misc.checkUB(!is_reflexive,
-                    \\The `{s}.eq` function isn't reflexive:
-                    \\   {any} !== {any}
-                , .{
-                    @typeName(Self),
-                    item,
-                    item,
-                });
-            }
-
-            return self_other;
+        fn defaultAllEq(self: Self, slice: []const Self) bool {
+            return for (slice) |item| {
+                if (no(self, item)) break false;
+            } else true;
         }
 
-        const Self: type = contract.default(.Self, Contractor);
+        fn defaultAnyEq(self: Self, slice: []const Self) bool {
+            return for (slice) |item| {
+                if (eq(self, item)) break true;
+            } else false;
+        }
 
-        /// This namespace is a testing namespace for the `Equivalent` interface. It's intended to be
-        /// used in tests, the functions inside have horrible complexity.
-        pub const equivalency_tests = struct {
-            /// This function fails when `∀x : x === x` is false in the given sample.
-            ///
-            /// It has a complexity of `O(n)`, with `n` being the length of  the sample, and
-            /// assuming that the provided `eq` function is `O(1)`.
-            pub fn reflexivity(sample: []const Self) ReflexivityError!void {
-                if (!contract.hasClause(.eq)) return;
-                for (sample) |x|
-                    if (!testEq(x, x))
-                        return ReflexivityError.EqualityIsNotReflexive;
+        fn defaultAllNo(self: Self, slice: []const Self) bool {
+            return for (slice) |item| {
+                if (eq(self, item)) break false;
+            } else true;
+        }
+
+        fn defaultAnyNo(self: Self, slice: []const Self) bool {
+            return for (slice) |item| {
+                if (no(self, item)) break true;
+            } else false;
+        }
+
+        fn defaultFilteredEq(self: Self, slice: []const Self, into: []Self) BoundsError![]Self {
+            var index: usize = 0;
+            for (slice) |item| if (no(self, item)) {
+                if (index == into.len) return BoundsError.OutOfBounds;
+                into[index] = item;
+                index += 1;
+            };
+
+            return into[0..index];
+        }
+
+        fn defaultFilteredNo(self: Self, slice: []const Self, into: []Self) BoundsError![]Self {
+            var index: usize = 0;
+            for (slice) |item| if (eq(self, item)) {
+                if (index == into.len) return BoundsError.OutOfBounds;
+                into[index] = item;
+                index += 1;
+            };
+
+            return into[0..index];
+        }
+
+        fn defaultFilterEq(self: Self, slice: []Self) []Self {
+            return filteredEq(self, slice, slice) catch unreachable;
+        }
+
+        fn defaultFilterNo(self: Self, slice: []Self) []Self {
+            return filteredNo(self, slice, slice) catch unreachable;
+        }
+
+        const default_sample: []const Self = &[_]Self{};
+        const BoundsError = error{OutOfBounds};
+
+        /// This namespace contains functions and tests for the validity of the `Equivalent`
+        /// interface. The tests are using the `sample` clause on the testing functions.
+        pub const testing_equivalency = struct {
+            pub fn testingReflexivity(s: []const Self) !void {
+                for (s) |x|
+                    if (no(x, x))
+                        return error.NoReflexivity;
             }
 
-            /// This function fails when `∀x, y : (x === y) => (y === x)` is false in the given
-            /// sample.
-            ///
-            /// It has a time complexity of `O(n^2)`, with `n` being the length of  the sample,
-            /// and assuming that the provided `eq` function is `O(1)`.
-            pub fn symmetry(sample: []const Self) SymmetryError!void {
-                if (!contract.hasClause(.eq)) return;
-                for (sample) |x| for (sample) |y|
-                    if (testEq(x, y) and !testEq(y, x))
-                        return SymmetryError.EqualityIsNotSymmetric;
+            pub fn testingSymmetry(s: []const Self) !void {
+                for (s) |x| for (s) |y|
+                    if (eq(x, y) != eq(y, x))
+                        return error.NoSymmetry;
             }
 
-            /// This function fails when `∀x, y, z : ((x === y) & (y === z)) => (x === z)` is false
-            /// in the given sample.
-            ///
-            /// It has a time complexity of `O(n^3)`, with `n` being the length of  the sample,
-            /// and assuming that the provided `eq` function is `O(1)`.
-            pub fn transitivity(sample: []const Self) TransitivityError!void {
-                if (!contract.hasClause(.eq)) return;
-                for (sample) |x| for (sample) |y| for (sample) |z|
-                    //     ∀x, y, z : ((x === y) & (y === z)) => (x === z)
-                    // <=> ∀x, y, z : !((x === y) & (y === z)) | (x === z)
-                    // <=> ∀x, y, z : (!(x === y) | !(y === z)) | (x === z)
-                    // <=> ∀x, y, z : (x !== y) | (y !== z) | (x === z)
-                    if (!testEq(x, y) or !testEq(y, z) or testEq(x, z))
-                        return TransitivityError.EqualityIsNotTransitive;
+            pub fn testingTransitivity(s: []const Self) !void {
+                for (s) |x| for (s) |y| for (s) |z|
+                    if (eq(x, y) and eq(y, z) and no(x, z))
+                        return error.NoTransitivity;
             }
 
-            pub const ReflexivityError = error{EqualityIsNotReflexive};
-            pub const SymmetryError = error{EqualityIsNotSymmetric};
-            pub const TransitivityError = error{EqualityIsNotTransitive};
-
-            /// This equivalent function should be used for tests. It must be unchecked, otherwise
-            /// there might be infinite recursive call on checking functions.
-            const testEq: fn (Self, Self) bool = uncheckedEq;
-
-            /// This slice is a sample used for making tests. It can be useful when certain
-            /// combinations of instances of `Contractor`
-            const testing_sample: []const Self = contract.default(.sample, @as([]const Self, &.{}));
-
-            test "Equivalency is reflexive" {
-                try reflexivity(testing_sample);
+            pub fn testingNo(s: []const Self) !void {
+                for (s) |x| for (s) |y|
+                    if (no(x, y) == eq(x, y))
+                        return error.MisimplementedNo;
             }
 
-            test "Equivalency is symmetric" {
-                try symmetry(testing_sample);
+            pub fn testingAllEq(s: []const Self) !void {
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
+                    if (allEq(x, s[start..end]) != defaultAllEq(x, s[start..end]))
+                        return error.MisimplementedAllEq;
             }
 
-            test "Equivalency is transitive" {
-                try transitivity(testing_sample);
+            pub fn testingAnyEq(s: []const Self) !void {
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
+                    if (anyEq(x, s[start..end]) != defaultAnyEq(x, s[start..end]))
+                        return error.MisimplementedAnyEq;
             }
 
-            test "Equivalency" {
-                try reflexivity(testing_sample);
-                try symmetry(testing_sample);
-                try transitivity(testing_sample);
+            pub fn testingAllNo(s: []const Self) !void {
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
+                    if (allNo(x, s[start..end]) != defaultAllNo(x, s[start..end]))
+                        return error.MisimplementedAllNo;
+            }
+
+            pub fn testingAnyNo(s: []const Self) !void {
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
+                    if (anyNo(x, s[start..end]) != defaultAnyNo(x, s[start..end]))
+                        return error.MisimplementedAnyNo;
+            }
+
+            pub fn testingFilteredEq(s: []const Self) !void {
+                var buffer1: [sample.len]Self = undefined;
+                var buffer2: [sample.len]Self = undefined;
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end| {
+                    const filtered1 = filteredEq(x, s[start..end], &buffer1);
+                    const filtered2 = defaultFilteredEq(x, s[start..end], &buffer2);
+                    if (filtered1) |f1| {
+                        if (filtered2) |f2| {
+                            if (f1.len != f2.len) return error.MisimplementedFilteredEq;
+                            for (f1) |y| if (no(x, y)) return error.MisimplementedFilteredEq;
+                        } else return error.MisimplementedFilteredEq;
+                    } else if (filtered2) |_| return error.MisimplementedFilteredEq;
+                };
+            }
+
+            pub fn testingFilteredNo(s: []const Self) !void {
+                var buffer1: [sample.len]Self = undefined;
+                var buffer2: [sample.len]Self = undefined;
+                for (s) |x| for (0..s.len) |start| for (start..s.len) |end| {
+                    const filtered1 = filteredNo(x, s[start..end], &buffer1);
+                    const filtered2 = defaultFilteredNo(x, s[start..end], &buffer2);
+                    if (filtered1) |f1| {
+                        if (filtered2) |f2| {
+                            if (f1.len != f2.len) return error.MisimplementedFilteredEq;
+                            for (f1) |y| if (eq(x, y)) return error.MisimplementedFilteredEq;
+                        } else return error.MisimplementedFilteredEq;
+                    } else if (filtered2) |_| return error.MisimplementedFilteredEq;
+                };
+            }
+
+            pub fn testingFilterEq(s: []const Self) !void {
+                var buffer1: [sample.len]Self = undefined;
+                var buffer2: [sample.len]Self = undefined;
+                const max = @min(s.len, sample.len);
+                for (s) |x| for (0..s.len) |start| for (start..max + start) |end| {
+                    for (s[start..end], 0..) |item, i| {
+                        buffer1[i] = item;
+                        buffer2[i] = item;
+                    }
+
+                    const slice1: []Self = buffer1[0..end];
+                    const slice2: []Self = buffer2[0..end];
+                    const result1 = filterEq(x, slice1);
+                    const result2 = defaultFilterEq(x, slice2);
+
+                    if (result1.len != result2.len) return error.MisimplementedFilterEq;
+                    for (result1, result2) |item1, item2|
+                        if (no(item1, item2))
+                            return error.MisimplementedFilterEq;
+                };
+            }
+
+            pub fn testingFilterNo(s: []const Self) !void {
+                var buffer1: [sample.len]Self = undefined;
+                var buffer2: [sample.len]Self = undefined;
+                const max = @min(s.len, sample.len);
+                for (s) |x| for (0..s.len) |start| for (start..max + start) |end| {
+                    for (s[start..end], 0..) |item, i| {
+                        buffer1[i] = item;
+                        buffer2[i] = item;
+                    }
+
+                    const slice1: []Self = buffer1[0..end];
+                    const slice2: []Self = buffer2[0..end];
+                    const result1 = filterNo(x, slice1);
+                    const result2 = defaultFilterNo(x, slice2);
+
+                    if (result1.len != result2.len) return error.MisimplementedFilterNo;
+                    for (result1, result2) |item1, item2|
+                        if (no(item1, item2))
+                            return error.MisimplementedFilterNo;
+                };
+            }
+
+            test "Reflexivity" {
+                try testingReflexivity(sample);
+            }
+
+            test "Symmetry" {
+                try testingSymmetry(sample);
+            }
+
+            test "Transitivity" {
+                try testingTransitivity(sample);
+            }
+
+            test "no" {
+                try testingNo(sample);
+            }
+
+            test "allEq" {
+                try testingAllEq(sample);
+            }
+
+            test "anyEq" {
+                try testingAnyEq(sample);
+            }
+
+            test "allNo" {
+                try testingAllNo(sample);
+            }
+
+            test "anyNo" {
+                try testingAnyNo(sample);
+            }
+
+            test "filteredEq" {
+                try testingFilteredEq(sample);
+            }
+
+            test "filteredNo" {
+                try testingFilteredNo(sample);
+            }
+
+            test "filterEq" {
+                try testingFilterEq(sample);
+            }
+
+            test "filterNo" {
+                try testingFilterNo(sample);
             }
         };
     };
