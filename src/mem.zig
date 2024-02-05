@@ -6,6 +6,8 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         const contract = contracts.Contract(Contractor, clauses);
 
         const Self: type = contract.default(.Self, Contractor);
+        const ConstSelf: type = contract.default(.ConstSelf, *const Self);
+        const VarSelf: type = contract.default(.VarSelf, *Self);
         const Error: type = std.mem.Allocator.Error;
 
         const allocFn = contract.require(.alloc, fn (
@@ -16,7 +18,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         ) ?[*]u8);
 
         const resizeFn = contract.require(.resize, fn (
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             buf_align: u8,
             new_len: usize,
@@ -24,14 +26,14 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         ) bool);
 
         const freeFn = contract.require(.free, fn (
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             buf_align: u8,
             ret_addr: usize,
         ) void);
 
         pub fn noResize(
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             log2_buf_align: u8,
             new_len: usize,
@@ -46,7 +48,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn noFree(
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             log2_buf_align: u8,
             ret_addr: usize,
@@ -60,7 +62,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// This function is not intended to be called except from within the
         /// implementation of an Allocator
         pub inline fn rawAlloc(
-            self: Self,
+            self: VarSelf,
             len: usize,
             ptr_align: u8,
             ret_addr: usize,
@@ -71,7 +73,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// This function is not intended to be called except from within the
         /// implementation of an Allocator
         pub inline fn rawResize(
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             log2_buf_align: u8,
             new_len: usize,
@@ -83,7 +85,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// This function is not intended to be called except from within the
         /// implementation of an Allocator
         pub inline fn rawFree(
-            self: Self,
+            self: VarSelf,
             buf: []u8,
             log2_buf_align: u8,
             ret_addr: usize,
@@ -93,7 +95,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
 
         /// Returns a pointer to undefined memory.
         /// Call `destroy` with the result to free the memory.
-        pub fn create(self: Self, comptime T: type) Error!*T {
+        pub fn create(self: VarSelf, comptime T: type) Error!*T {
             if (@sizeOf(T) == 0) return @as(*T, @ptrFromInt(std.math.maxInt(usize)));
             const ptr: *T = @ptrCast(try allocBytesWithAlignment(self, @alignOf(T), @sizeOf(T), @returnAddress()));
             return ptr;
@@ -101,7 +103,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
 
         /// `ptr` should be the return value of `create`, or otherwise
         /// have the same address and alignment property.
-        pub fn destroy(self: Self, ptr: anytype) void {
+        pub fn destroy(self: VarSelf, ptr: anytype) void {
             const info = @typeInfo(@TypeOf(ptr)).Pointer;
             if (info.size != .One) @compileError("ptr must be a single item pointer");
             const T = info.child;
@@ -118,12 +120,12 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// call `free` when done.
         ///
         /// For allocating a single item, see `create`.
-        pub fn alloc(self: Self, comptime T: type, n: usize) Error![]T {
+        pub fn alloc(self: VarSelf, comptime T: type, n: usize) Error![]T {
             return allocAdvancedWithRetAddr(self, T, null, n, @returnAddress());
         }
 
         pub fn allocWithOptions(
-            self: Self,
+            self: VarSelf,
             comptime Elem: type,
             n: usize,
             /// null means naturally aligned
@@ -141,7 +143,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn allocWithOptionsRetAddr(
-            self: Self,
+            self: VarSelf,
             comptime Elem: type,
             n: usize,
             /// null means naturally aligned
@@ -181,7 +183,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         ///
         /// For allocating a single item, see `create`.
         pub fn allocSentinel(
-            self: Self,
+            self: VarSelf,
             comptime Elem: type,
             n: usize,
             comptime sentinel: Elem,
@@ -190,7 +192,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn alignedAlloc(
-            self: Self,
+            self: VarSelf,
             comptime T: type,
             /// null means naturally aligned
             comptime alignment: ?u29,
@@ -200,7 +202,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub inline fn allocAdvancedWithRetAddr(
-            self: Self,
+            self: VarSelf,
             comptime T: type,
             /// null means naturally aligned
             comptime alignment: ?u29,
@@ -219,7 +221,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         fn allocWithSizeAndAlignment(
-            self: Self,
+            self: VarSelf,
             comptime size: usize,
             comptime alignment: u29,
             n: usize,
@@ -230,7 +232,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         fn allocBytesWithAlignment(
-            self: Self,
+            self: VarSelf,
             comptime alignment: u29,
             byte_count: usize,
             return_address: usize,
@@ -263,7 +265,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// Requests to modify the size of an allocation. It is guaranteed to not move
         /// the pointer, however the allocator implementation may refuse the resize
         /// request by returning `false`.
-        pub fn resize(self: Self, old_mem: anytype, new_n: usize) bool {
+        pub fn resize(self: VarSelf, old_mem: anytype, new_n: usize) bool {
             const Slice = @typeInfo(@TypeOf(old_mem)).Pointer;
             const T = Slice.child;
             if (new_n == 0) {
@@ -290,7 +292,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         /// This function requests a new byte size for an existing allocation, which
         /// can be larger, smaller, or the same size as the old memory allocation.
         /// If `new_n` is 0, this is the same as `free` and it always succeeds.
-        pub fn realloc(self: Self, old_mem: anytype, new_n: usize) t: {
+        pub fn realloc(self: VarSelf, old_mem: anytype, new_n: usize) t: {
             const Slice = @typeInfo(@TypeOf(old_mem)).Pointer;
             break :t Error![]align(Slice.alignment) Slice.child;
         } {
@@ -298,7 +300,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn reallocAdvanced(
-            self: Self,
+            self: VarSelf,
             old_mem: anytype,
             new_n: usize,
             return_address: usize,
@@ -357,7 +359,7 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
 
         /// Free an array allocated with `alloc`. To free a single item,
         /// see `destroy`.
-        pub fn free(self: Self, memory: anytype) void {
+        pub fn free(self: VarSelf, memory: anytype) void {
             const Slice = @typeInfo(@TypeOf(memory)).Pointer;
             const bytes = std.mem.sliceAsBytes(memory);
             const bytes_len = bytes.len + if (Slice.sentinel != null) @sizeOf(Slice.child) else 0;
@@ -369,14 +371,14 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         /// Copies `m` to newly allocated memory. Caller owns the memory.
-        pub fn dupe(allocator: Self, comptime T: type, m: []const T) Error![]T {
+        pub fn dupe(allocator: VarSelf, comptime T: type, m: []const T) Error![]T {
             const new_buf = try alloc(allocator, T, m.len);
             @memcpy(new_buf, m);
             return new_buf;
         }
 
         /// Copies `m` to newly allocated memory, with a null-terminated element. Caller owns the memory.
-        pub fn dupeZ(allocator: Self, comptime T: type, m: []const T) Error![:0]T {
+        pub fn dupeZ(allocator: VarSelf, comptime T: type, m: []const T) Error![:0]T {
             const new_buf = try alloc(allocator, T, m.len + 1);
             @memcpy(new_buf[0..m.len], m);
             new_buf[m.len] = 0;
@@ -452,5 +454,6 @@ pub const Allocator = struct {
         .alloc = allocFn,
         .resize = resizeFn,
         .free = freeFn,
+        .VarSelf = Allocator,
     });
 };
