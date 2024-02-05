@@ -4,20 +4,16 @@ Interfacil is a Zig package for making and using interfaces easily in Zig.
 
 [You can find guides here.](src/guides)
 
-Disclaimer: These are static interfaces using `comptime`. This is not about dynamic polymorphism,
-or inheritance, there's no dynamic dispatch happening here. If you want runtime interfaces check
-these repos:
+Here are a few projects with similar purpose:
 
 - [zig_interfaces by yglcode](https://github.com/yglcode/zig_interfaces),
-- [zimpl by permutationlock](https://github.com/permutationlock/zimpl) has both static and dynamic dispatch,
+- [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
-
-This is more in response of [this issue](https://github.com/ziglang/zig/issues/1268).
 
 These interfaces work well with zls, you can see their type (though sometimes a type annotation 
 makes it better), and their doc comments. Props to the zls people!
 
-## How to use interfaces
+## How to use static interfaces
 
 ```zig
 // The accessor is the type from which you can access the interface's return.
@@ -45,7 +41,7 @@ const two = Accessor.add(zero, one);
 const three= two.add(one);
 ```
 
-## How to make interfaces
+## How to make static interfaces
 
 ```zig
 pub fn MyInterface(comptime Contractor: type, comptime clauses: anytype) type {
@@ -85,3 +81,11 @@ pub fn MyInterface(comptime Contractor: type, comptime clauses: anytype) type {
     };
 }
 ```
+
+## How to use dynamic interfaces
+
+TODO
+
+# How to make dynamic interfaces
+
+TODO

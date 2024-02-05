@@ -4,23 +4,26 @@ const contracts = @import("contracts.zig");
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
-const ArrayListAligned = std.ArrayListAligned;
 
 /// This interface is straightly taken from `std.io.AnyReader`.
 pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
+        pub const Self: type = contract.default(.Self, Contractor);
+        pub const ReadError: type = contract.default(.ReadError, anyerror);
+        const AllocReadError = ReadError || Allocator.Error || error{StreamTooLong};
+        const StreamError = ReadError || error{EndOfStream};
 
         /// Returns the number of bytes read. It may be less than buffer.len.
         /// If the number of bytes read is 0, it means end of stream.
         /// End of stream is not an error condition.
-        pub const read: fn (self: Self, buffer: []u8) Error!usize =
-            contract.require(.read, fn (Self, []u8) Error!usize);
+        pub const read: fn (self: Self, buffer: []u8) ReadError!usize =
+            contract.require(.read, fn (Self, []u8) ReadError!usize);
 
         /// Returns the number of bytes read. If the number read is smaller than `buffer.len`, it
         /// means the stream reached the end. Reaching the end of a stream is not an error
         /// condition.
-        pub fn readAll(self: Self, buffer: []u8) Error!usize {
+        pub fn readAll(self: Self, buffer: []u8) ReadError!usize {
             return readAtLeast(self, buffer, buffer.len);
         }
 
@@ -29,7 +32,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         /// `len` bytes filled. If the number read is less than `len` it means
         /// the stream reached the end. Reaching the end of the stream is not
         /// an error condition.
-        pub fn readAtLeast(self: Self, buffer: []u8, len: usize) Error!usize {
+        pub fn readAtLeast(self: Self, buffer: []u8, len: usize) ReadError!usize {
             std.debug.assert(len <= buffer.len);
             var index: usize = 0;
             while (index < len) {
@@ -41,9 +44,9 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         }
 
         /// If the number read would be smaller than `buf.len`, `error.EndOfStream` is returned instead.
-        pub fn readNoEof(self: Self, buf: []u8) Error!void {
+        pub fn readNoEof(self: Self, buf: []u8) StreamError!void {
             const amt_read = try readAll(self, buf);
-            if (amt_read < buf.len) return Error.EndOfStream;
+            if (amt_read < buf.len) return StreamError.EndOfStream;
         }
 
         /// Appends to the `std.ArrayList` contents by reading from the stream
@@ -55,16 +58,16 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
             self: Self,
             array_list: *ArrayList(u8),
             max_append_size: usize,
-        ) Error!void {
+        ) AllocReadError!void {
             return readAllArrayListAligned(self, null, array_list, max_append_size);
         }
 
         pub fn readAllArrayListAligned(
             self: Self,
             comptime alignment: ?u29,
-            array_list: *ArrayListAligned(u8, alignment),
+            array_list: *std.ArrayListAligned(u8, alignment),
             max_append_size: usize,
-        ) Error!void {
+        ) AllocReadError!void {
             try array_list.ensureTotalCapacity(@min(max_append_size, 4096));
             const original_len = array_list.items.len;
             var start_index: usize = original_len;
@@ -76,7 +79,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
 
                 if (start_index - original_len > max_append_size) {
                     array_list.shrinkAndFree(original_len + max_append_size);
-                    return Error.StreamTooLong;
+                    return AllocReadError.StreamTooLong;
                 }
 
                 if (bytes_read != dest_slice.len) {
@@ -93,7 +96,11 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         /// memory would be greater than `max_size`, returns `error.StreamTooLong`.
         /// Caller owns returned memory.
         /// If this function returns an error, the contents from the stream read so far are lost.
-        pub fn readAllAlloc(self: Self, allocator: Allocator, max_size: usize) Error![]u8 {
+        pub fn readAllAlloc(
+            self: Self,
+            allocator: Allocator,
+            max_size: usize,
+        ) AllocReadError![]u8 {
             var array_list = ArrayList(u8).init(allocator);
             defer array_list.deinit();
             try readAllArrayList(self, &array_list, max_size);
@@ -107,17 +114,17 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         /// If `optional_max_size` is null, appending is unbounded.
         pub fn streamUntilDelimiter(
             self: Self,
-            writer: anytype,
+            writer: Writer,
             delimiter: u8,
             optional_max_size: ?usize,
-        ) Error!void {
+        ) anyerror!void {
             if (optional_max_size) |max_size| {
                 for (0..max_size) |_| {
                     const byte: u8 = try readByte(self);
                     if (byte == delimiter) return;
                     try writer.writeByte(byte);
                 }
-                return Error.StreamTooLong;
+                return error.StreamTooLong;
             } else {
                 while (true) {
                     const byte: u8 = try readByte(self);
@@ -131,10 +138,10 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         /// Reads from the stream until specified byte is found, discarding all data,
         /// including the delimiter.
         /// If end-of-stream is found, this function succeeds.
-        pub fn skipUntilDelimiterOrEof(self: Self, delimiter: u8) Error!void {
+        pub fn skipUntilDelimiterOrEof(self: Self, delimiter: u8) ReadError!void {
             while (true) {
                 const byte = readByte(self) catch |err| switch (err) {
-                    Error.EndOfStream => return,
+                    StreamError.EndOfStream => return,
                     else => |e| return e,
                 };
                 if (byte == delimiter) return;
@@ -142,21 +149,21 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         }
 
         /// Reads 1 byte from the stream or returns `error.EndOfStream`.
-        pub fn readByte(self: Self) Error!u8 {
+        pub fn readByte(self: Self) StreamError!u8 {
             var result: [1]u8 = undefined;
             const amt_read = try read(self, result[0..]);
-            if (amt_read < 1) return Error.EndOfStream;
+            if (amt_read < 1) return StreamError.EndOfStream;
             return result[0];
         }
 
         /// Same as `readByte` except the returned byte is signed.
-        pub fn readByteSigned(self: Self) Error!i8 {
+        pub fn readByteSigned(self: Self) StreamError!i8 {
             return @as(i8, @bitCast(try readByte(self)));
         }
 
         /// Reads exactly `num_bytes` bytes and returns as an array.
         /// `num_bytes` must be comptime-known
-        pub fn readBytesNoEof(self: Self, comptime num_bytes: usize) Error![num_bytes]u8 {
+        pub fn readBytesNoEof(self: Self, comptime num_bytes: usize) StreamError![num_bytes]u8 {
             var bytes: [num_bytes]u8 = undefined;
             try readNoEof(self, &bytes);
             return bytes;
@@ -170,7 +177,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
             self: Self,
             comptime num_bytes: usize,
             bounded: *std.BoundedArray(u8, num_bytes),
-        ) Error!void {
+        ) ReadError!void {
             while (bounded.len < num_bytes) {
                 // get at most the number of bytes free in the bounded array
                 const bytes_read = try read(self, bounded.unusedCapacitySlice());
@@ -186,13 +193,17 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         pub fn readBoundedBytes(
             self: Self,
             comptime num_bytes: usize,
-        ) Error!std.BoundedArray(u8, num_bytes) {
+        ) ReadError!std.BoundedArray(u8, num_bytes) {
             var result = std.BoundedArray(u8, num_bytes){};
             try readIntoBoundedBytes(self, num_bytes, &result);
             return result;
         }
 
-        pub inline fn readInt(self: Self, comptime T: type, endian: std.builtin.Endian) Error!T {
+        pub inline fn readInt(
+            self: Self,
+            comptime T: type,
+            endian: std.builtin.Endian,
+        ) StreamError!T {
             const bytes = try readBytesNoEof(self, @divExact(@typeInfo(T).Int.bits, 8));
             return std.mem.readInt(T, &bytes, endian);
         }
@@ -202,7 +213,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
             comptime ReturnType: type,
             endian: std.builtin.Endian,
             size: usize,
-        ) Error!ReturnType {
+        ) StreamError!ReturnType {
             std.debug.assert(size <= @sizeOf(ReturnType));
             var bytes_buf: [@sizeOf(ReturnType)]u8 = undefined;
             const bytes = bytes_buf[0..size];
@@ -217,7 +228,11 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
 
         // `num_bytes` is a `u64` to match `off_t`
         /// Reads `num_bytes` bytes from the stream and discards them
-        pub fn skipBytes(self: Self, num_bytes: u64, comptime options: SkipBytesOptions) Error!void {
+        pub fn skipBytes(
+            self: Self,
+            num_bytes: u64,
+            comptime options: SkipBytesOptions,
+        ) StreamError!void {
             var buf: [options.buf_size]u8 = undefined;
             var remaining = num_bytes;
 
@@ -229,7 +244,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         }
 
         /// Reads `slice.len` bytes from the stream and returns if they are the same as the passed slice
-        pub fn isBytes(self: Self, slice: []const u8) Error!bool {
+        pub fn isBytes(self: Self, slice: []const u8) StreamError!bool {
             var i: usize = 0;
             var matches = true;
             while (i < slice.len) : (i += 1) {
@@ -240,7 +255,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
             return matches;
         }
 
-        pub fn readStruct(self: Self, comptime T: type) Error!T {
+        pub fn readStruct(self: Self, comptime T: type) StreamError!T {
             // Only extern and packed structs have defined in-memory layout.
             comptime std.debug.assert(@typeInfo(T).Struct.layout != .Auto);
             var res: [1]T = undefined;
@@ -248,7 +263,11 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
             return res[0];
         }
 
-        pub fn readStructEndian(self: Self, comptime T: type, endian: std.builtin.Endian) Error!T {
+        pub fn readStructEndian(
+            self: Self,
+            comptime T: type,
+            endian: std.builtin.Endian,
+        ) StreamError!T {
             var res = try readStruct(self, T);
             if (std.mem.native_endian != endian) {
                 std.mem.byteSwapAllFields(T, &res);
@@ -259,11 +278,11 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
         /// Reads an integer with the same size as the given enum's tag type. If the integer matches
         /// an enum tag, casts the integer to the enum tag and returns it. Otherwise, returns an `error.InvalidValue`.
         /// TODO optimization taking advantage of most fields being in order
-        pub fn readEnum(self: Self, comptime Enum: type, endian: std.builtin.Endian) Error!Enum {
-            const E = error{
-                /// An integer was read, but it did not match any of the tags in the supplied enum.
-                InvalidValue,
-            };
+        pub fn readEnum(
+            self: Self,
+            comptime Enum: type,
+            endian: std.builtin.Endian,
+        ) (StreamError || error{InvalidValue})!Enum {
             const type_info = @typeInfo(Enum).Enum;
             const tag = try readInt(self, type_info.tag_type, endian);
 
@@ -273,40 +292,57 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
                 }
             }
 
-            return E.InvalidValue;
+            return error.InvalidValue;
         }
 
-        pub const Self: type = contract.default(.Self, Contractor);
-
-        // TODO: more restrictive errors
-        pub const Error: type = anyerror;
+        pub fn asReader(self: Self) Reader {
+            return Reader{
+                .ctx = &self,
+                .vtable = .{ .read = &read },
+            };
+        }
     };
 }
+
+pub const Reader = struct {
+    ctx: *anyopaque,
+    vtable: struct {
+        read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
+    },
+
+    fn readFn(self: Reader, buffer: []u8) anyerror!usize {
+        return self.vtable(self.ctx, buffer);
+    }
+
+    pub usingnamespace Readable(Reader, .{ .read = readFn });
+};
 
 /// This interface is straightly taken from `std.io.Writer`.
 pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
-        pub const write = contract.require(.write, fn (Self, []const u8) Error!usize);
+        pub const write = contract.require(.write, fn (Self, []const u8) WriteError!usize);
+        pub const WriteError: type = contract.default(.WriteError, anyerror);
+        const Self: type = contract.default(.Self, Contractor);
 
-        pub fn writeAll(self: Self, bytes: []const u8) Error!void {
+        pub fn writeAll(self: Self, bytes: []const u8) WriteError!void {
             var index: usize = 0;
             while (index != bytes.len) {
                 index += try write(self, bytes[index..]);
             }
         }
 
-        pub fn print(self: Self, comptime format: []const u8, args: anytype) Error!void {
-            return std.fmt.format(self, format, args);
+        pub fn print(self: Self, comptime format: []const u8, args: anytype) WriteError!void {
+            return std.fmt.format(asWriter(self), format, args);
         }
 
-        pub fn writeByte(self: Self, byte: u8) Error!void {
+        pub fn writeByte(self: Self, byte: u8) WriteError!void {
             const array = [1]u8{byte};
             return writeAll(self, &array);
         }
 
-        pub fn writeByteNTimes(self: Self, byte: u8, n: usize) Error!void {
+        pub fn writeByteNTimes(self: Self, byte: u8, n: usize) WriteError!void {
             var bytes: [256]u8 = undefined;
             @memset(bytes[0..], byte);
 
@@ -318,32 +354,43 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
             }
         }
 
-        pub fn writeBytesNTimes(self: Self, bytes: []const u8, n: usize) Error!void {
+        pub fn writeBytesNTimes(self: Self, bytes: []const u8, n: usize) WriteError!void {
             var i: usize = 0;
             while (i < n) : (i += 1) {
                 try writeAll(self, bytes);
             }
         }
 
-        pub inline fn writeInt(self: Self, comptime T: type, value: T, endian: std.builtin.Endian) Error!void {
+        pub inline fn writeInt(self: Self, comptime T: type, value: T, endian: std.builtin.Endian) WriteError!void {
             var bytes: [@divExact(@typeInfo(T).Int.bits, 8)]u8 = undefined;
             std.mem.writeInt(std.math.ByteAlignedInt(@TypeOf(value)), &bytes, value, endian);
             return writeAll(self, &bytes);
         }
 
-        pub fn writeStruct(self: Self, value: anytype) Error!void {
+        pub fn writeStruct(self: Self, value: anytype) WriteError!void {
             // Only extern and packed structs have defined in-memory layout.
             comptime std.debug.assert(@typeInfo(@TypeOf(value)).Struct.layout != .Auto);
             return writeAll(self, std.mem.asBytes(&value));
         }
 
-        // TODO: incompatible interfacing with std when Self isn't Contractor, how to fix?
-        const Self: type = if (contract.hasClause(.Self)) misc.compileError(
-            "The `Writeable` can't interact well with the `std` when `Self` isn't the " ++
-                "contractor! Please use don't pass a `Self` clause and use the interface both " ++
-                "from and for `{s}`!",
-            .{@typeName(Contractor)},
-        ) else Contractor;
-        const Error: type = contract.default(.Error, anyerror);
+        pub fn asWriter(self: Self) Writer {
+            return Writer{
+                .ctx = &self,
+                .write = &write,
+            };
+        }
     };
 }
+
+pub const Writer = struct {
+    ctx: *anyopaque,
+    vtable: struct {
+        write: *const fn (self: *anyopaque, bytes: []const u8) anyerror!usize,
+    },
+
+    fn writeFn(self: Writer, bytes: []const u8) anyerror!usize {
+        return try self.vtable.write(self.ctx, bytes);
+    }
+
+    pub usingnamespace Writeable(Writer, .{ .write = writeFn });
+};
