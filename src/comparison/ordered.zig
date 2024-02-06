@@ -11,6 +11,9 @@ pub const Order = enum(i3) {
     forwards = 1,
 
     pub usingnamespace Equivalent(Order, .{});
+    /// The `OptEq` name stands for "Optional Equivalency", which is the namespace for partial
+    /// equivalency of the `?Order` type.
+    pub const OptEq = PartialEquivalent(?Order, .{});
 };
 
 pub fn Ordered(comptime Contractor: type, comptime clauses: anytype) type {
@@ -147,8 +150,7 @@ pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type
         pub usingnamespace PartialEquivalent(Contractor, .{ .eq = eqFn });
 
         fn eqFn(self: Self, other: Self) ?bool {
-            const order = compare(self, other) orelse return null;
-            return order.eq(.equals);
+            return Order.OptEq.eq(compare(self, other), Order.equals);
         }
 
         pub const lt: fn (Self, Self) ?bool = contract.default(.lt, defaultLessThan);
@@ -157,23 +159,19 @@ pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type
         pub const ge: fn (Self, Self) ?bool = contract.default(.ge, defaultGreaterEqual);
 
         fn defaultLessThan(self: Self, other: Self) ?bool {
-            const order = compare(self, other) orelse return null;
-            return order.eq(.forwards);
+            return Order.OptEq.eq(compare(self, other), Order.forwards);
         }
 
         fn defaultLessEqual(self: Self, other: Self) ?bool {
-            const order = compare(self, other) orelse return null;
-            return order.no(.backwards);
+            return Order.OptEq.no(compare(self, other), Order.backwards);
         }
 
         fn defaultGreaterThan(self: Self, other: Self) ?bool {
-            const order = compare(self, other) orelse return null;
-            return order.eq(.backwards);
+            return Order.OptEq.eq(compare(self, other), Order.backwards);
         }
 
         fn defaultGreaterEqual(self: Self, other: Self) ?bool {
-            const order = compare(self, other) orelse return null;
-            return order.no(.forwards);
+            return Order.OptEq.no(compare(self, other), Order.forwards);
         }
     };
 }
@@ -181,13 +179,12 @@ pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type
 pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
     return struct {
         fn partialCompareItems(c: anytype, d: @TypeOf(c), order: Order) ?Order {
-            if (anyPartialCompare(c, d)) |cd_order| {
-                return switch (order) {
-                    .equals => cd_order,
-                    .forwards => if (cd_order.eq(.backwards)) null else order,
-                    .backwards => if (cd_order.eq(.forwards)) null else order,
-                };
-            } else return null;
+            const cd_order = anyPartialCompare(c, d) orelse return null;
+            return switch (order) {
+                .equals => cd_order,
+                .forwards => if (cd_order.eq(.backwards)) null else order,
+                .backwards => if (cd_order.eq(.forwards)) null else order,
+            };
         }
 
         fn anyPartialCompare(a: anytype, b: @TypeOf(a)) ?Order {
