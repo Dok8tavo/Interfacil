@@ -451,22 +451,22 @@ const Allocator = struct {
         ) void,
     },
 
-    fn allocFn(self: Allocator, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
+    fn allocWrapper(self: Allocator, len: usize, ptr_align: u8, ret_addr: usize) ?[*]u8 {
         return self.vtable.alloc(self.ctx, len, ptr_align, ret_addr);
     }
 
-    fn resizeFn(self: Allocator, buf: []u8, buf_align: u8, newlen: usize, ret_addr: usize) bool {
+    fn resizeWrapper(self: Allocator, buf: []u8, buf_align: u8, newlen: usize, ret_addr: usize) bool {
         return self.vtable.resize(self.ctx, buf, buf_align, newlen, ret_addr);
     }
 
-    fn freeFn(self: Allocator, buf: []u8, buf_align: u8, ret_addr: usize) void {
+    fn freeWrapper(self: Allocator, buf: []u8, buf_align: u8, ret_addr: usize) void {
         self.vtable.free(self.ctx, buf, buf_align, ret_addr);
     }
 
     pub usingnamespace Allocating(Allocator, .{
-        .alloc = allocFn,
-        .resize = resizeFn,
-        .free = freeFn,
+        .alloc = allocWrapper,
+        .resize = resizeWrapper,
+        .free = freeWrapper,
         .VarSelf = Allocator,
     });
 };

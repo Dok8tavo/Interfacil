@@ -311,11 +311,11 @@ pub const Reader = struct {
         read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
     },
 
-    fn readFn(self: Reader, buffer: []u8) anyerror!usize {
+    fn readWrapper(self: Reader, buffer: []u8) anyerror!usize {
         return self.vtable(self.ctx, buffer);
     }
 
-    pub usingnamespace Readable(Reader, .{ .read = readFn, .Self = Reader });
+    pub usingnamespace Readable(Reader, .{ .read = readWrapper, .Self = Reader });
 };
 
 /// This interface is straightly taken from `std.io.Writer`.
@@ -394,12 +394,12 @@ pub const Writer = struct {
         write: *const fn (self: *anyopaque, bytes: []const u8) anyerror!usize,
     },
 
-    fn writeFn(self: Writer, bytes: []const u8) anyerror!usize {
+    fn writeWrapper(self: Writer, bytes: []const u8) anyerror!usize {
         return try self.vtable.write(self.ctx, bytes);
     }
 
     pub usingnamespace Writeable(Writer, .{
-        .write = writeFn,
+        .write = writeWrapper,
         .VarSelf = Writer,
     });
 };

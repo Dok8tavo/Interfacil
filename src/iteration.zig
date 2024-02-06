@@ -150,22 +150,22 @@ pub fn SliceIterator(comptime Item: type) type {
         index: usize = 0,
         slice: []const Item,
 
-        fn currFn(self: Self) ?Item {
+        fn currWrapper(self: Self) ?Item {
             return if (self.index <= self.slice.len) null else self.slice[self.index];
         }
 
-        fn skipFn(self: *Self) void {
+        fn skipWrapper(self: *Self) void {
             self.index +|= 1;
         }
 
-        fn skipBackFn(self: *Self) void {
+        fn skipBackWrapper(self: *Self) void {
             self.index -|= 1;
         }
 
         pub usingnamespace BidirectionIterable(SliceIterator, .{
-            .curr = currFn,
-            .skip = skipFn,
-            .skipBack = skipBackFn,
+            .curr = currWrapper,
+            .skip = skipWrapper,
+            .skipBack = skipBackWrapper,
         });
     };
 }
