@@ -13,6 +13,18 @@ Here are a few projects with similar purpose:
 These interfaces work well with zls, you can see their type (though sometimes a type annotation 
 makes it better), and their doc comments. Props to the zls people!
 
+## Currently implemented in Interfacil
+
+- `Allocating` and `Allocator` (for showcasing, do not use),
+- `BidirectionIterable` and `BidirectionIterator`,
+- `Equivalent`,
+- `Iterable` and `Iterator`,
+- `Ordered`,
+- `PartialEquivalent`,
+- `PartialOrdered`,
+- `Readable` and `Reader`,
+- `Writeable` and `Writer`,
+
 ## How to use static interfaces
 
 ```zig
