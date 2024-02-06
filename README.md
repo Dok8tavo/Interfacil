@@ -84,8 +84,103 @@ pub fn MyInterface(comptime Contractor: type, comptime clauses: anytype) type {
 
 ## How to use dynamic interfaces
 
-TODO
+If you don't really know what kind of `Iterable` will be passed to your function, and you can't really use `anytype` (or don't want to), you can just pass an `Iterator(Item)` instead. Here you go:
 
-# How to make dynamic interfaces
+```zig
+fn someFunction(iterable: anytype) void {
+    // here there can be no autocompletion from zls, because the type of `iterable` will be 
+    // resolved at each call of `someFunction`.
+    ...
+}
 
-TODO
+// becomes:
+fn someFunction(iterator: Iterator(Item)) void {
+    // here there can be autocompletion from zls, because it's smart enough to figure what methods
+    // will have a type resulting from `Iterator`
+    ...
+}
+
+// and at call site:
+someFunction(iterable);
+
+// becomes:
+someFunction(iterable.asIterator());
+```
+
+If the static interface has an `asDynamic` method, it's the easiest thing in the world to use dynamic interfaces.
+
+
+## How to make dynamic interfaces
+
+We already have dynamic interfaces at home, the [`std.mem.Allocator`](https://github.com/ziglang/zig/blob/master/lib/std/mem/Allocator.zig) is the perfect example. They hold a pointer to something, and a virtual table (a bunch of pointers to functions):
+
+```zig
+ptr: *anyopaque,
+vtable: struct {
+    alloc: *const fn (
+        ctx: *anyopaque,
+        len: usize,
+        ptr_align: u8,
+        ret_addr: usize,
+    ) ?[*]u8,
+
+    resize: *const fn (
+        ctx: *anyopaque,
+        buf: []u8,
+        buf_align: u8,
+        new_len: usize,
+        ret_addr: usize,
+    ) bool,
+
+    free: *const fn (
+        ctx: *anyopaque,
+        buf: []u8, buf_align: u8,
+        ret_addr: usize,
+    ) void,
+},
+```
+
+And then there's a bunch of functions that internally use the vtable and the pointer. 
+
+Now, dynamic interfaces in Interfacil aren't much different. What's different is that you can use static interfaces to define them, take a look at the [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) interface:
+
+```zig
+pub const Reader = struct {
+    ctx: *anyopaque,
+    vtable: struct {
+        read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
+    },
+
+    fn readFn(self: Reader, buffer: []u8) anyerror!usize {
+        return self.vtable(self.ctx, buffer);
+    }
+
+    pub usingnamespace Readable(Reader, .{ .read = readFn, .Self = Reader });
+};
+```
+
+And this is all there is to it! You just need to write wrappers around the vtable's functions, and pass them to the static interface that'll define all the methods for you! And since composing static interfaces is the easiest thing in the world, it's also quite easy to compose dynamic ones:
+
+```zig
+const ReaderAndWriter = struct {
+    ctx: *anyopaque,
+    vtable: struct {
+        read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
+        write: *const fn (self: *anyopaque, bytes: []const u8) anyerror!usize,
+    }
+
+    fn readFn(self: ReaderAndWriter, buffer: []u8) anyerror!usize {
+        return self.vtable(self.ctx, buffer);
+    }
+
+    fn writeFn(self: ReaderAndWriter, bytes: []const u8) anyerror!usize {
+        return self.vtable(self.ctx, bytes);
+    }
+
+    // Boom! Composition!
+    pub usingnamespace Readable(ReaderAndWriter, .{ .read = readFn, .Self = ReaderAndWriter });
+    pub usingnamespace Writeable(ReaderAndWriter, .{ .read = readFn, .Self = ReaderAndWriter });
+}
+```
+
+If you got access to the corresponding static interface, you should also add a `asDynamic` method to it. This way, any function that takes in the dynamic interface can be called and be passed a `with_static.asDynamic()` argument. For example, the `Readable` interface has a `fn asReader(self: *Self) Reader` method. The `Writeable` interface has a `fn asWriter(self: *Self) Writer` method. The `Allocating` has a `fn asAllocator(self: *Self) Allocator` method, and so on.

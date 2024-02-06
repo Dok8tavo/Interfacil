@@ -399,9 +399,21 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
             }
         }
 
-        pub fn asAllocator(self: Self) Allocator {
+        /// This isn't public, this is just for showcasing.
+        fn asAllocator(self: Self) Allocator {
             return Allocator{
-                .ctx = self,
+                .ctx = &self,
+                .vtable = .{
+                    .alloc = &allocFn,
+                    .resize = &resizeFn,
+                    .free = &freeFn,
+                },
+            };
+        }
+
+        pub fn asStdAllocator(self: Self) std.mem.Allocator {
+            return std.mem.Allocator{
+                .ptr = &self,
                 .vtable = .{
                     .alloc = &allocFn,
                     .resize = &resizeFn,
@@ -412,7 +424,8 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     };
 }
 
-pub const Allocator = struct {
+/// This isn't public, this is just for showcasing.
+const Allocator = struct {
     ctx: *anyopaque,
     vtable: struct {
         alloc: *const fn (
