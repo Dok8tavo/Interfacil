@@ -4,27 +4,28 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
-        const Self: type = contract.default(.Self, *Contractor);
+        const Self: type = contract.default(.Self, Contractor);
+        const VarSelf: type = contract.default(.VarSelf, *Self);
         const Item = contract.require(.Item, type);
 
         pub const curr = contract.require(.curr, fn (Self) ?Item);
-        pub const skip = contract.require(.skip, fn (Self) void);
+        pub const skip = contract.require(.skip, fn (VarSelf) void);
 
-        pub fn next(self: Self) ?Item {
+        pub fn next(self: VarSelf) ?Item {
             skip(self);
             return curr(self);
         }
 
-        pub fn skipTimes(self: Self, times: usize) void {
+        pub fn skipTimes(self: VarSelf, times: usize) void {
             for (0..times) |_| if (next(self) == null) return null;
         }
 
-        pub fn nextTimes(self: Self, times: usize) ?Item {
+        pub fn nextTimes(self: VarSelf, times: usize) ?Item {
             skipTimes(self, times);
             return curr(self);
         }
 
-        pub fn asIterator(self: Self) Iterator(Item) {
+        pub fn asIterator(self: VarSelf) Iterator(Item) {
             return Iterator(Item){
                 .ctx = self,
                 .vtable = .{
@@ -54,8 +55,8 @@ pub fn Iterator(comptime Item: type) type {
             self.vtable.skip(self.ctx);
         }
 
-        pub usingnamespace Iterable(Iterator, .{
-            .Self = Iterator,
+        pub usingnamespace Iterable(Self, .{
+            .VarSelf = Self,
             .Item = Item,
             .curr = currFn,
             .skip = skipFn,
@@ -67,13 +68,15 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
-        const Self: type = contract.default(.Self, *Contractor);
+        const Self: type = contract.default(.Self, Contractor);
+        const VarSelf: type = contract.default(.VarSelf, *Self);
         const Item = contract.require(.Item, type);
         const skipBack = contract.require(.skipBack, fn (Self) Item);
 
         const forwards_iterable = Iterable(Contractor, clauses);
         const backwards_iterable = Iterable(Contractor, .{
             .Self = Self,
+            .VarSelf = VarSelf,
             .Item = Item,
             .skip = skipBack,
             .curr = forwards_iterable.curr,
@@ -101,6 +104,7 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
 
         pub const Backwards = BidirectionIterable(Contractor, .{
             .Self = Self,
+            .VarSelf = VarSelf,
             .Item = Item,
             .skip = backwards_iterable.skip,
             .skipBack = forwards_iterable.skip,
@@ -133,7 +137,6 @@ pub fn BidirectionIterator(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Iterator, .{
-            .Self = Iterator,
             .VarSelf = Iterator,
             .Item = Item,
             .curr = currFn,

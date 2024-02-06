@@ -315,7 +315,7 @@ pub const Reader = struct {
         return self.vtable(self.ctx, buffer);
     }
 
-    pub usingnamespace Readable(Reader, .{ .read = readWrapper, .Self = Reader });
+    pub usingnamespace Readable(Reader, .{ .read = readWrapper, .VarSelf = Reader });
 };
 
 /// This interface is straightly taken from `std.io.Writer`.
@@ -323,27 +323,28 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
-        pub const write = contract.require(.write, fn (Self, []const u8) WriteError!usize);
+        pub const write = contract.require(.write, fn (VarSelf, []const u8) WriteError!usize);
         pub const WriteError: type = contract.default(.WriteError, anyerror);
-        const Self: type = contract.default(.Self, *Contractor);
+        const Self: type = contract.default(.VarSelf, *Self);
+        const VarSelf: type = contract.default(.Self, Contractor);
 
-        pub fn writeAll(self: Self, bytes: []const u8) WriteError!void {
+        pub fn writeAll(self: VarSelf, bytes: []const u8) WriteError!void {
             var index: usize = 0;
             while (index != bytes.len) {
                 index += try write(self, bytes[index..]);
             }
         }
 
-        pub fn print(self: Self, comptime format: []const u8, args: anytype) WriteError!void {
+        pub fn print(self: VarSelf, comptime format: []const u8, args: anytype) WriteError!void {
             return std.fmt.format(asWriter(self), format, args);
         }
 
-        pub fn writeByte(self: Self, byte: u8) WriteError!void {
+        pub fn writeByte(self: VarSelf, byte: u8) WriteError!void {
             const array = [1]u8{byte};
             return writeAll(self, &array);
         }
 
-        pub fn writeByteNTimes(self: Self, byte: u8, n: usize) WriteError!void {
+        pub fn writeByteNTimes(self: VarSelf, byte: u8, n: usize) WriteError!void {
             var bytes: [256]u8 = undefined;
             @memset(bytes[0..], byte);
 
@@ -355,7 +356,7 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
             }
         }
 
-        pub fn writeBytesNTimes(self: Self, bytes: []const u8, n: usize) WriteError!void {
+        pub fn writeBytesNTimes(self: VarSelf, bytes: []const u8, n: usize) WriteError!void {
             var i: usize = 0;
             while (i < n) : (i += 1) {
                 try writeAll(self, bytes);
@@ -363,7 +364,7 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
         }
 
         pub inline fn writeInt(
-            self: Self,
+            self: VarSelf,
             comptime T: type,
             value: T,
             endian: std.builtin.Endian,
@@ -373,13 +374,13 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
             return writeAll(self, &bytes);
         }
 
-        pub fn writeStruct(self: Self, value: anytype) WriteError!void {
+        pub fn writeStruct(self: VarSelf, value: anytype) WriteError!void {
             // Only extern and packed structs have defined in-memory layout.
             comptime std.debug.assert(@typeInfo(@TypeOf(value)).Struct.layout != .Auto);
             return writeAll(self, std.mem.asBytes(&value));
         }
 
-        pub fn asWriter(self: Self) Writer {
+        pub fn asWriter(self: VarSelf) Writer {
             return Writer{
                 .ctx = &self,
                 .write = &write,
@@ -399,7 +400,7 @@ pub const Writer = struct {
     }
 
     pub usingnamespace Writeable(Writer, .{
-        .write = writeWrapper,
         .VarSelf = Writer,
+        .write = writeWrapper,
     });
 };
