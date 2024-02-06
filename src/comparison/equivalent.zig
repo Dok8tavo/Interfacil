@@ -812,7 +812,7 @@ pub fn partialEqualsFn(comptime T: type) fn (T, T) ?bool {
                     const payload_a = @field(a, @tagName(tag_a));
                     const payload_b = @field(b, @tagName(tag_b));
                     return anyPartialEquals(payload_a, payload_b);
-                } else misc.compileError("", .{}),
+                } else misc.compileError("In order to be compared unions must be tagged!", .{}),
                 // Structs, vectors and array are product types. We are comparing their members one
                 // by one, as pairs, following these rule:
                 // 1. ∃(m1, m2) in (p1, p2) : (equals(m1, m2) == false)

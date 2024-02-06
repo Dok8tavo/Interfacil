@@ -131,3 +131,90 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
         }
     }.compare;
 }
+
+pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
+    return struct {
+        fn partialCompareItems(c: anytype, d: @TypeOf(c), order: Order) ?Order {
+            if (anyPartialCompare(c, d)) |cd_order| {
+                return switch (order) {
+                    .equals => cd_order,
+                    .forwards => if (cd_order.eq(.backwards)) null else order,
+                    .backwards => if (cd_order.eq(.forwards)) null else order,
+                };
+            } else return null;
+        }
+
+        fn anyPartialCompare(a: anytype, b: @TypeOf(a)) ?Order {
+            const A = @TypeOf(a);
+            const info = @typeInfo(A);
+            return switch (info) {
+                .Int, .ComptimeInt => if (a == b)
+                    .equals
+                else if (a < b)
+                    .forwards
+                else
+                    .backwards,
+                .Bool => anyPartialCompare(@intFromBool(a), @intFromBool(b)),
+                .Enum => anyPartialCompare(@intFromEnum(a), @intFromEnum(b)),
+                .ErrorSet => anyPartialCompare(@intFromError(a), @intFromError(b)),
+                .Array, .Vector => {
+                    var ab_order = Order.equals;
+                    return inline for (a, b) |c, d| {
+                        ab_order = partialCompareItems(c, d, ab_order) orelse break null;
+                    } else ab_order;
+                },
+                .Struct => |Struct| {
+                    var ab_order = Order.equals;
+                    return inline for (Struct.fields) |field| {
+                        const c = @field(a, field.name);
+                        const d = @field(b, field.name);
+                        ab_order = partialCompareItems(c, d, ab_order) orelse break null;
+                    } else ab_order;
+                },
+                // Comparing two values of different types doesn't make much sense, that's why sum
+                // types must return null when two of them don't have the same variant active.
+                .Optional => {
+                    const yes_a = a orelse return null;
+                    const yes_b = b orelse return null;
+                    return anyPartialCompare(yes_a, yes_b);
+                },
+                .ErrorUnion => {
+                    const yes_a = a catch return null;
+                    const yes_b = b catch return null;
+                    return anyPartialCompare(yes_a, yes_b);
+                },
+                .Union => |Union| if (Union.tag_type) |_| {
+                    const tag_a = @intFromEnum(a);
+                    const tag_b = @intFromEnum(b);
+                    if (tag_a != tag_b) return null;
+                    const payload_a = @field(a, @tagName(tag_a));
+                    const payload_b = @field(b, @tagName(tag_b));
+                    return anyPartialCompare(payload_a, payload_b);
+                } else misc.compileError("In order to be compared unions must be tagged!", .{}),
+                .Pointer => |Pointer| switch (Pointer.size) {
+                    .One => anyPartialCompare(a.*, b.*),
+                    .Slice => if (a.len != b.len) null else {
+                        var ab_order = Order.equals;
+                        return for (a, b) |c, d| {
+                            ab_order = partialCompareItems(c, d, ab_order) orelse break null;
+                        } else ab_order;
+                    },
+                    // TODO: better error messages!
+                    else => misc.compileError(
+                        "The `{s}.anyPartialCompare` function can't compare complex types like `{s}`!",
+                        .{ @typeName(T), @typeName(A) },
+                    ),
+                },
+                // TODO: better error messages!
+                else => misc.compileError(
+                    "The `{s}.anyPartialCompare` function can't compare complex types like `{s}`!",
+                    .{ @typeName(T), @typeName(A) },
+                ),
+            };
+        }
+
+        pub fn call(self: T, other: T) ?Order {
+            return anyPartialCompare(self, other);
+        }
+    }.call;
+}
