@@ -43,10 +43,10 @@ pub fn Iterator(comptime Item: type) type {
         ctx: *anyopaque,
         vtable: struct {
             skip: *const fn (*anyopaque) void,
-            curr: *const fn (*anyopaque) ?*Item,
+            curr: *const fn (*anyopaque) ?Item,
         },
 
-        fn currFn(self: Self) ?*Item {
+        fn currFn(self: Self) ?Item {
             return self.vtable.curr(self.ctx);
         }
 
