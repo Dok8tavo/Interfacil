@@ -142,3 +142,30 @@ pub fn BidirectionIterator(comptime Item: type) type {
         });
     };
 }
+
+pub fn SliceIterator(comptime Item: type) type {
+    return struct {
+        const Self = @This();
+
+        index: usize = 0,
+        slice: []const Item,
+
+        fn currFn(self: Self) ?Item {
+            return if (self.index <= self.slice.len) null else self.slice[self.index];
+        }
+
+        fn skipFn(self: *Self) void {
+            self.index +|= 1;
+        }
+
+        fn skipBackFn(self: *Self) void {
+            self.index -|= 1;
+        }
+
+        pub usingnamespace BidirectionIterable(SliceIterator, .{
+            .curr = currFn,
+            .skip = skipFn,
+            .skipBack = skipBackFn,
+        });
+    };
+}
