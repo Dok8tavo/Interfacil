@@ -1,7 +1,9 @@
 const std = @import("std");
 const misc = @import("../misc.zig");
 const contracts = @import("../contracts.zig");
-const Equivalent = @import("equivalent.zig").Equivalent;
+const equivalent = @import("equivalent.zig");
+const Equivalent = equivalent.Equivalent;
+const PartialEquivalent = equivalent.PartialEquivalent;
 
 pub const Order = enum(i3) {
     backwards = -1,
@@ -17,7 +19,11 @@ pub fn Ordered(comptime Contractor: type, comptime clauses: anytype) type {
         const Self: type = contract.default(.Self, Contractor);
 
         pub const compare: fn (Self, Self) Order = contract.default(.compare, anyCompareFn(Self));
-        pub usingnamespace Equivalent(Contractor, clauses);
+        pub usingnamespace Equivalent(Self, .{ .eq = eqFn });
+
+        fn eqFn(self: Self, other: Self) bool {
+            return compare(self, other).eq(.equals);
+        }
 
         pub const lt: fn (Self, Self) bool = contract.default(.lt, defaultLessThan);
         pub const le: fn (Self, Self) bool = contract.default(.le, defaultLessEqual);
@@ -130,6 +136,46 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
             return anyCompare(self, other);
         }
     }.compare;
+}
+
+pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type {
+    return struct {
+        const contract = contracts.Contract(Contractor, clauses);
+        const Self = contract.default(.Self, Contractor);
+
+        pub const compare: fn (Self, Self) ?Order = contract.default(.compare, anyCompareFn(Self));
+        pub usingnamespace PartialEquivalent(Contractor, .{ .eq = eqFn });
+
+        fn eqFn(self: Self, other: Self) ?bool {
+            const order = compare(self, other) orelse return null;
+            return order.eq(.equals);
+        }
+
+        pub const lt: fn (Self, Self) ?bool = contract.default(.lt, defaultLessThan);
+        pub const le: fn (Self, Self) ?bool = contract.default(.le, defaultLessEqual);
+        pub const gt: fn (Self, Self) ?bool = contract.default(.gt, defaultGreaterThan);
+        pub const ge: fn (Self, Self) ?bool = contract.default(.ge, defaultGreaterEqual);
+
+        fn defaultLessThan(self: Self, other: Self) ?bool {
+            const order = compare(self, other) orelse return null;
+            return order.eq(.forwards);
+        }
+
+        fn defaultLessEqual(self: Self, other: Self) ?bool {
+            const order = compare(self, other) orelse return null;
+            return order.no(.backwards);
+        }
+
+        fn defaultGreaterThan(self: Self, other: Self) ?bool {
+            const order = compare(self, other) orelse return null;
+            return order.eq(.backwards);
+        }
+
+        fn defaultGreaterEqual(self: Self, other: Self) ?bool {
+            const order = compare(self, other) orelse return null;
+            return order.no(.forwards);
+        }
+    };
 }
 
 pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
