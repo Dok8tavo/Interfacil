@@ -1,5 +1,25 @@
 const contracts = @import("contracts.zig");
 
+/// # Iterable
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
+///
 pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -37,6 +57,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     };
 }
 
+/// TODO
 pub fn Iterator(comptime Item: type) type {
     return struct {
         const Self = @This();
@@ -64,6 +85,27 @@ pub fn Iterator(comptime Item: type) type {
     };
 }
 
+
+/// # BidirectionIterable
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
+///
 pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -113,6 +155,7 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
     };
 }
 
+/// TODO
 pub fn BidirectionIterator(comptime Item: type) type {
     return struct {
         const Self = @This();
@@ -146,6 +189,7 @@ pub fn BidirectionIterator(comptime Item: type) type {
     };
 }
 
+/// TODO
 pub fn SliceIterator(comptime Item: type) type {
     return struct {
         const Self = @This();

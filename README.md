@@ -15,16 +15,16 @@ makes it better), and their doc comments. Props to the zls people!
 
 ## Currently implemented in Interfacil
 
-- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/mem.zig#L4C1-L425C2) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/mem.zig#L428C1-L472C3) (for showcasing, do not use),
-- [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/iteration.zig#L67C1-L114C2) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/iteration.zig#L116C1-L147C2),
-- [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/comparison/equivalent.zig#L85C1-L414C2),
-- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/iteration.zig#L3C1-L38C2) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/iteration.zig#L40C1-L65C2),
-- [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/comparison/ordered.zig#L19C1-L98C2),
-- [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/comparison/equivalent.zig#L560C1-L766C2),
-- [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/comparison/ordered.zig#L144C1-L177C2),
-- [`Readable`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/io.zig#L9C1-L306C2) and [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/io.zig#L308C1-L319C3),
-- [`SliceIterator`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/iteration.zig#L149C1-L174C2),
-- [`Writeable`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/io.zig#L322C1-L390C2) and [`Writer`](https://github.com/Dok8tavo/Interfacil/blob/2f73d24eadc19821d77566744984a1e7ee060558/src/io.zig#L392C1-L406C3),
+- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig#L4C1-L425C2) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig#L428C1-L472C3) (for showcasing, do not use),
+- [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L67C1-L114C2) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L116C1-L147C2),
+- [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig#L85C1-L414C2),
+- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L3C1-L38C2) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L40C1-L65C2),
+- [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig#L19C1-L98C2),
+- [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig#L560C1-L766C2),
+- [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig#L144C1-L177C2),
+- [`Readable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig#L9C1-L306C2) and [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig#L308C1-L319C3),
+- [`SliceIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L149C1-L174C2),
+- [`Writeable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig#L322C1-L390C2) and [`Writer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig#L392C1-L406C3),
 
 ## How to use static interfaces
 
@@ -120,7 +120,9 @@ someFunction(iterable);
 someFunction(iterable.asIterator());
 ```
 
-If the static interface has an `asDynamic` method, it's the easiest thing in the world to use dynamic interfaces.
+If the static interface has an `asDynamic` method, it's the easiest thing in the world to make an instance of dynamic interface.
+
+You have to be cautious though: a dynamic interface must hold a reference to its context, and it's only valid while this context is valid.
 
 
 ## How to make dynamic interfaces

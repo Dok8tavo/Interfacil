@@ -13,75 +13,19 @@ const contracts = @import("../contracts.zig");
 ///
 /// ## Clauses
 ///
-/// ### Methods
-///
-/// The `eq` method is defaulted to an equality function returned by `equalsFn`. It's most of the
-/// time the one you want, however if you truly want an equivalency and not an equality, you
-/// probably will have to write it on your own.
-///
-/// All methods have a default implementation that'll most likely be the one you want. But in case
-/// there are some invariants you want to take advantage of, you can override them.
-///
-/// ```zig
-/// const Clauses = struct {
-///     eq: fn (Self, Self) bool,
-///     no: fn (Self, Self) bool,
-///     allEq: fn (Self, []const Self) bool,
-///     anyEq: fn (Self, []const Self) bool,
-///     allNo: fn (Self, []const Self) bool,
-///     anyNo: fn (Self, []const Self) bool,
-///     filteredEq: fn (Self, []const Self, []Self) BoundsError![]Self,
-///     filteredNo: fn (Self, []const Self, []Self) BoundsError![]Self,
-///     filterEq: fn (Self, []Self) []Self,
-///     filterNo: fn (Self, []Self) []Self,
-/// };
-/// ```
-///
-/// ### Others
-///
-/// The `Self` clause lets you specify another type than the contractor.
-///
-/// The `sample` clause lets you specify the sample slice on which tests will be performed.
-///
-/// The `max_sample_length` clause lets you define what length should the testing functions be
-/// limited to.
+/// TODO
 ///
 /// ## Declarations
 ///
-/// The returned namespace exposes the following declarations:
+/// TODO
 ///
-/// ```zig
-/// const namespace = struct {
-///     eq: fn (Self, Self) bool,
-///     no: fn (Self, Self) bool,
-///     allEq: fn (Self, []const Self) bool,
-///     anyEq: fn (Self, []const Self) bool,
-///     allNo: fn (Self, []const Self) bool,
-///     anyNo: fn (Self, []const Self) bool,
-///     filteredEq: fn (Self, []const Self, []Self) BoundsError![]Self,
-///     filteredNo: fn (Self, []const Self, []Self) BoundsError![]Self,
-///     filterEq: fn (Self, []Self) []Self,
-///     filterNo: fn (Self, []Self) []Self,
-///     testing_equivalency: type,
-/// };
-/// ```
+/// ## Usage
 ///
-/// The `testing_equivalency` namespace exposes the following declarations:
+/// TODO
 ///
-/// ```zig
-/// const testing_equivalency = struct {
-///     testingEq: fn ([]const Self) anyerror!void,
-///     testingNo: fn ([]const Self) anyerror!void,
-///     testingAllEq: fn ([]const Self) anyerror!void,
-///     testingAnyEq: fn ([]const Self) anyerror!void,
-///     testingAllNo: fn ([]const Self) anyerror!void,
-///     testingAnyNo: fn ([]const Self) anyerror!void,
-///     testingFilteredEq: fn ([]const Self) anyerror!void,
-///     testingFilteredNo: fn ([]const Self) anyerror!void,
-///     testingFilterEq: fn ([]Self) anyerror!void,
-///     testingFilterNo: fn ([]Self) anyerror!void,
-/// };
-/// ```
+/// ## Testing
+///
+/// TODO
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -98,99 +42,88 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
         /// - antireflexive: `∀x : !no(x, x)`
         /// - symmetric: `∀x, y : no(x, y) == no(y, x)`
         /// - the opposite of `eq`: `∀x, y : eq(x, y) != no(x, y)`
-        pub const no: fn (self: Self, other: Self) bool = contract.default(.no, defaultNo);
+        pub fn no(self: Self, other: Self) bool {
+            return !eq(self, other);
+        }
 
-        /// This function checks that all items of the `slice` parameter are equivalent to the
-        /// `self` parameter, i.e. that `eq(self, item) == true`.
-        ///
-        /// It basically returns `∀x in slice : eq(self, x)`.
-        pub const allEq: fn (self: Self, slice: []const Self) bool =
-            contract.default(.allEq, defaultAllEq);
+        pub fn allEq(self: Self, slice: []const Self, from: From) bool {
+            return !anyNo(self, slice, from);
+        }
 
-        /// This function checks that there's at least one item of the `slice` parameter that's
-        /// equivalent to the `self` parameter, i.e. that `eq(self, item) == true`.
-        ///
-        /// It basically returns `∃x in slice : eq(self, x)`.
-        pub const anyEq: fn (self: Self, slice: []const Self) bool =
-            contract.default(.allEq, defaultAnyEq);
+        pub fn anyEq(self: Self, slice: []const Self, from: From) bool {
+            return switch (from) {
+                .first => firstIndexEq(self, slice),
+                .last => lastIndexEq(self, slice),
+            } != null;
+        }
 
-        /// This function checks that none of the items of the `slice` parameter is equivalent to
-        /// the `self` parameter, i.e. that `eq(self, item) == false`.
-        ///
-        /// It basically returns `∀x in slice : no(self, x)`.
-        pub const allNo: fn (self: Self, slice: []const Self) bool =
-            contract.default(.allNo, defaultAllNo);
+        pub fn allNo(self: Self, slice: []const Self, from: From) bool {
+            return !anyEq(self, slice, from);
+        }
 
-        /// This function checks that there's at least one item of the `slice` parameter that's
-        /// not equivalent to the `self` parameter, i.e. that `eq(self, item) == false`.
-        ///
-        /// It basically returns `∃x in slice : no(self, x)`.
-        pub const anyNo: fn (self: Self, slice: []const Self) bool =
-            contract.default(.anyNo, defaultAnyNo);
+        pub fn anyNo(self: Self, slice: []const Self, from: From) bool {
+            return switch (from) {
+                .first => firstIndexNo(self, slice),
+                .last => lastIndexNo(self, slice),
+            } != null;
+        }
 
-        /// This function returns the items of the `slice` parameter that are equivalent to the
-        /// `self` parameter. A successful return is guaranteed to be a slice with:
-        ///
-        /// - `∀x in result : eq(self, x)`
-        /// - `allEq(self, result)`
-        /// - `!anyNo(self, result)`
         pub const filteredEq: fn (
             self: Self,
             slice: []const Self,
             into: []Self,
         ) BoundsError![]Self = contract.default(.filteredEq, defaultFilteredEq);
 
-        /// This function returns the items of the `slice` parameter that are not equivalent to
-        /// the `self` parameter. A successful return is guaranteed to be a slice with:
-        ///
-        /// - `∀x in result : no(self, x)`,
-        /// - `allNo(self, result)`
-        /// - `!anyEq(self, result)`
         pub const filteredNo: fn (
             self: Self,
             slice: []const Self,
             into: []Self,
         ) BoundsError![]Self = contract.default(.filteredNo, defaultFilteredNo);
 
-        /// This function is a shorthand for `filteredEq(self, slice, silce) catch unreachable`
-        pub const filterEq: fn (self: Self, slice: []Self) []Self =
-            contract.default(.filterEq, defaultFilterEq);
+        pub fn filterEq(self: Self, slice: []Self) []Self {
+            return filteredEq(self, slice, slice) catch unreachable;
+        }
 
-        /// This function is a shorthand for `filteredNo(self, slice, silce) catch unreachable`
-        pub const filterNo: fn (self: Self, slice: []Self) []Self =
-            contract.default(.filterNo, defaultFilterNo);
+        pub fn filterNo(self: Self, slice: []Self) []Self {
+            return filteredNo(self, slice, slice) catch unreachable;
+        }
+
+        pub fn firstEq(self: Self, slice: []const Self) ?Self {
+            const index = firstIndexEq(self, slice) orelse return null;
+            return slice[index];
+        }
+
+        pub fn firstNo(self: Self, slice: []const Self) ?Self {
+            const index = firstIndexNo(self, slice) orelse return null;
+            return slice[index];
+        }
+
+        pub const firstIndexEq: fn (self: Self, slice: []const Self) ?usize =
+            contract.default(.firstIndexEq, defaultFirstIndexEq);
+
+        pub const firstIndexNo: fn (self: Self, slice: []const Self) ?usize =
+            contract.default(.firstIndexNo, defaultFirstIndexNo);
+
+        pub fn lastEq(self: Self, slice: []const Self) ?Self {
+            const index = lastIndexEq(self, slice) orelse return null;
+            return slice[index];
+        }
+
+        pub fn lastNo(self: Self, slice: []const Self) ?Self {
+            const index = lastIndexNo(self, slice) orelse return null;
+            return slice[index];
+        }
+
+        pub const lastIndexEq: fn (self: Self, slice: []const Self) ?usize =
+            contract.default(.lastIndexEq, defaultLastIndexEq);
+
+        pub const lastIndexNo: fn (self: Self, slice: []const Self) ?usize =
+            contract.default(.lastIndexNo, defaultLastIndexNo);
 
         const Self: type = contract.default(.Self, Contractor);
         const sample: []const Self = contract.default(.sample, default_sample);
         const max_sample_length = contract.default(.max_sample_length, @max(sample.len, 16));
-
-        fn defaultNo(self: Self, other: Self) bool {
-            return !eq(self, other);
-        }
-
-        fn defaultAllEq(self: Self, slice: []const Self) bool {
-            return for (slice) |item| {
-                if (no(self, item)) break false;
-            } else true;
-        }
-
-        fn defaultAnyEq(self: Self, slice: []const Self) bool {
-            return for (slice) |item| {
-                if (eq(self, item)) break true;
-            } else false;
-        }
-
-        fn defaultAllNo(self: Self, slice: []const Self) bool {
-            return for (slice) |item| {
-                if (eq(self, item)) break false;
-            } else true;
-        }
-
-        fn defaultAnyNo(self: Self, slice: []const Self) bool {
-            return for (slice) |item| {
-                if (no(self, item)) break true;
-            } else false;
-        }
+        const From = enum { first, last };
 
         fn defaultFilteredEq(self: Self, slice: []const Self, into: []Self) BoundsError![]Self {
             var index: usize = 0;
@@ -214,12 +147,30 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             return into[0..index];
         }
 
-        fn defaultFilterEq(self: Self, slice: []Self) []Self {
-            return filteredEq(self, slice, slice) catch unreachable;
+        fn defaultFirstIndexEq(self: Self, slice: []const Self) ?usize {
+            return for (slice, 0..) |item, i| {
+                if (eq(self, item)) break i;
+            } else null;
         }
 
-        fn defaultFilterNo(self: Self, slice: []Self) []Self {
-            return filteredNo(self, slice, slice) catch unreachable;
+        fn defaultFirstIndexNo(self: Self, slice: []const Self) ?usize {
+            return for (slice, 0..) |item, i| {
+                if (no(self, item)) break i;
+            } else null;
+        }
+
+        fn defaultLastIndexEq(self: Self, slice: []const Self) ?usize {
+            return for (1..slice.len + 1) |reverse_i| {
+                const i = slice.len - reverse_i;
+                if (eq(self, slice[i])) break i;
+            } else null;
+        }
+
+        fn defaultLastIndexNo(self: Self, slice: []const Self) ?usize {
+            return for (1..slice.len + 1) |reverse_i| {
+                const i = slice.len - reverse_i;
+                if (no(self, slice[i])) break i;
+            } else null;
         }
 
         const default_sample: []const Self = &[_]Self{};
@@ -247,41 +198,6 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 for (s) |x| for (s) |y| for (s) |z|
                     if (eq(x, y) and eq(y, z) and no(x, z))
                         return error.NoTransitivity;
-            }
-
-            pub fn testingNo(s: []const Self) !void {
-                if (contract.hasClause(.no)) return;
-                for (s) |x| for (s) |y|
-                    if (no(x, y) == eq(x, y))
-                        return error.MisimplementedNo;
-            }
-
-            pub fn testingAllEq(s: []const Self) !void {
-                if (contract.hasClause(.allEq)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (allEq(x, s[start..end]) != defaultAllEq(x, s[start..end]))
-                        return error.MisimplementedAllEq;
-            }
-
-            pub fn testingAnyEq(s: []const Self) !void {
-                if (contract.hasClause(.anyEq)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (anyEq(x, s[start..end]) != defaultAnyEq(x, s[start..end]))
-                        return error.MisimplementedAnyEq;
-            }
-
-            pub fn testingAllNo(s: []const Self) !void {
-                if (contract.hasClause(.allNo)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (allNo(x, s[start..end]) != defaultAllNo(x, s[start..end]))
-                        return error.MisimplementedAllNo;
-            }
-
-            pub fn testingAnyNo(s: []const Self) !void {
-                if (contract.hasClause(.anyNo)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (anyNo(x, s[start..end]) != defaultAnyNo(x, s[start..end]))
-                        return error.MisimplementedAnyNo;
             }
 
             pub fn testingFilteredEq(s: []const Self) !void {
@@ -316,52 +232,6 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 };
             }
 
-            pub fn testingFilterEq(s: []const Self) !void {
-                if (contract.hasClause(.filterEq)) return;
-                var buffer1: [max_sample_length]Self = undefined;
-                var buffer2: [max_sample_length]Self = undefined;
-                const max = @min(s.len, sample.len);
-                for (s) |x| for (0..s.len) |start| for (start..max + start) |end| {
-                    for (s[start..end], 0..) |item, i| {
-                        buffer1[i] = item;
-                        buffer2[i] = item;
-                    }
-
-                    const slice1: []Self = buffer1[0..end];
-                    const slice2: []Self = buffer2[0..end];
-                    const result1 = filterEq(x, slice1);
-                    const result2 = defaultFilterEq(x, slice2);
-
-                    if (result1.len != result2.len) return error.MisimplementedFilterEq;
-                    for (result1, result2) |item1, item2|
-                        if (no(item1, item2))
-                            return error.MisimplementedFilterEq;
-                };
-            }
-
-            pub fn testingFilterNo(s: []const Self) !void {
-                if (contract.hasClause(.filterNo)) return;
-                var buffer1: [max_sample_length]Self = undefined;
-                var buffer2: [max_sample_length]Self = undefined;
-                const max = @min(s.len, sample.len);
-                for (s) |x| for (0..s.len) |start| for (start..max + start) |end| {
-                    for (s[start..end], 0..) |item, i| {
-                        buffer1[i] = item;
-                        buffer2[i] = item;
-                    }
-
-                    const slice1: []Self = buffer1[0..end];
-                    const slice2: []Self = buffer2[0..end];
-                    const result1 = filterNo(x, slice1);
-                    const result2 = defaultFilterNo(x, slice2);
-
-                    if (result1.len != result2.len) return error.MisimplementedFilterNo;
-                    for (result1, result2) |item1, item2|
-                        if (no(item1, item2))
-                            return error.MisimplementedFilterNo;
-                };
-            }
-
             test "Equivalent: Reflexivity" {
                 try testingReflexivity(sample);
             }
@@ -374,40 +244,12 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 try testingTransitivity(sample);
             }
 
-            test "Equivalent: no" {
-                try testingNo(sample);
-            }
-
-            test "Equivalent: allEq" {
-                try testingAllEq(sample);
-            }
-
-            test "Equivalent: anyEq" {
-                try testingAnyEq(sample);
-            }
-
-            test "Equivalent: allNo" {
-                try testingAllNo(sample);
-            }
-
-            test "Equivalent: anyNo" {
-                try testingAnyNo(sample);
-            }
-
             test "Equivalent: filteredEq" {
                 try testingFilteredEq(sample);
             }
 
             test "Equivalent: filteredNo" {
                 try testingFilteredNo(sample);
-            }
-
-            test "Equivalent: filterEq" {
-                try testingFilterEq(sample);
-            }
-
-            test "Equivalent: filterNo" {
-                try testingFilterNo(sample);
             }
         };
     };
@@ -428,12 +270,15 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 .ComptimeInt,
                 .Enum,
                 .EnumLiteral,
-                .ErrorSet,
                 .Int,
                 // Types are their id, which is a numerical value.
                 .Type,
+                // Errors shouldn't be compared when they're in a union error, but here we're
+                // comparing only errors between them, so it's fine.
+                .ErrorSet,
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
+                // TODO: specialized equals with precision for floats
                 .ComptimeFloat, .Float => misc.compileError(
                     "The `{s}.anyEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
@@ -497,66 +342,24 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
 /// - almost symmetric, `∀x, y : eq(x, y) === eq(y, x)`,
 /// - almost transitive, `∀x, y, z : (eq(x, y) and eq(y, z)) or (eq(x, z) === false)`.
 ///
-/// The "almost" operator ("===") returns true if one of the two arguments is null.
+/// The "almost" operator ("===") returns true if one of its arguments is null, or if both are
+/// equals.
 ///
 /// ## Clauses
 ///
-/// ### Methods
-///
-/// The `eq` method is defaulted to a partial equality function returned by `partialEqualsFn`.
-/// It's most of the time the one you want, however if you truly want an equivalency and not an
-/// equality, you probably will have to write it on your own.
-///
-/// All methods have a default implementation that'll most likely be the one you want. But in case
-/// there are some invariants you want to take advantage of, you can override them.
-///
-/// ```zig
-/// const Clauses = struct {
-///     no: fn (Self, Self) bool,
-///     allEq: fn (Self, []const Self) ?bool,
-///     anyEq: fn (Self, []const Self) ?bool,
-///     allNo: fn (Self, []const Self) ?bool,
-///     anyNo: fn (Self, []const Self) ?bool,
-/// };
-/// ```
-///
-/// ### Others
-///
-/// The `Self` clause lets you specify another type than the contractor.
-///
-/// The `sample` clause lets you specify the sample slice on which tests will be performed.
-///
-/// The `max_sample_length` clause lets you define what length should the testing functions be
-/// limited to.
+/// TODO
 ///
 /// ## Declarations
 ///
-/// The returned namespace exposes the following declarations:
+/// TODO
 ///
-/// ```zig
-/// const namespace = struct {
-///     eq: fn (Self, Self) ?bool,
-///     no: fn (Self, Self) ?bool,
-///     allEq: fn (Self, []const Self) ?bool,
-///     anyEq: fn (Self, []const Self) ?bool,
-///     allNo: fn (Self, []const Self) ?bool,
-///     anyNo: fn (Self, []const Self) ?bool,
-///     testing_partial_equivalency: type,
-/// };
-/// ```
+/// ## Usage
 ///
-/// The `testing_partial_equivalency` namespace exposes the following declarations:
+/// TODO
 ///
-/// ```zig
-/// const testing_partial_equivalency = struct {
-///     testingEq: fn ([]const Self) anyerror!void,
-///     testingNo: fn ([]const Self) anyerror!void,
-///     testingAllEq: fn ([]const Self) anyerror!void,
-///     testingAnyEq: fn ([]const Self) anyerror!void,
-///     testingAllNo: fn ([]const Self) anyerror!void,
-///     testingAnyNo: fn ([]const Self) anyerror!void,
-/// };
-/// ```
+/// ## Testing
+///
+/// TODO
 pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -574,86 +377,13 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
         /// - almost antireflexive: `∀x : no(x, x) === false`
         /// - almost symmetric: `∀x, y : no(x, y) === no(y, x)`
         /// - almost the opposite of `eq`: `∀x, y : eq(x, y) !== no(x, y)`
-        pub const no: fn (self: Self, other: Self) ?bool =
-            contract.default(.no, defaultNo);
-
-        /// This function checks that all items of the `slice` parameter are equivalent to the
-        /// `self` parameter, i.e. that `eq(self, item) == true`. Else if some items are only
-        /// partial-equivalent, it returns `null`. Else it returns `false`.
-        pub const allEq: fn (self: Self, slice: []const Self) ?bool =
-            contract.default(.allEq, defaultAllEq);
-
-        /// This function checks that there's at least one item of the `slice` parameter that's
-        /// equivalent to the `self` parameter, i.e. that `eq(self, item) == true`. Else if there's
-        /// an item partial-equivalent to `self`, it returns `null`. Else it returns `false`.
-        pub const anyEq: fn (self: Self, slice: []const Self) ?bool =
-            contract.default(.allEq, defaultAnyEq);
-
-        /// This function checks that none of the items of the `slice` parameter is equivalent to
-        /// the `self` parameter, i.e. that `eq(self, item) == false`. Else if some items are only
-        /// partial-equivalent, it returns `null`. Else it returns `false`.
-        pub const allNo: fn (self: Self, slice: []const Self) ?bool =
-            contract.default(.allNo, defaultAllNo);
-
-        /// This function checks that there's at least one item of the `slice` parameter that's not
-        /// equivalent to the `self` parameter, i.e. that `eq(self, item) == false`. Else if
-        /// there's an item partial-equivalent to `self`, it returns `null`. Else it returns
-        /// `false`.
-        pub const anyNo: fn (self: Self, slice: []const Self) bool =
-            contract.default(.anyNo, defaultAnyNo);
-
-        const Self: type = contract.default(.Self, Contractor);
-        const sample: []const Self = contract.default(.sample, default_sample);
-
-        fn defaultNo(self: Self, other: Self) ?bool {
+        pub fn no(self: Self, other: Self) ?bool {
             return if (eq(self, other)) |r| !r else null;
         }
 
-        fn defaultAllEq(self: Self, slice: []const Self) ?bool {
-            var has_null = false;
-            for (slice) |item| {
-                if (eq(self, item)) |r| {
-                    if (!r) return false;
-                } else has_null = true;
-            }
-
-            return if (has_null) null else true;
-        }
-
-        fn defaultAnyEq(self: Self, slice: []const Self) ?bool {
-            var has_null = false;
-            for (slice) |item| {
-                if (eq(self, item)) |r| {
-                    if (r) return true;
-                } else has_null = true;
-            }
-
-            return if (has_null) null else false;
-        }
-
-        fn defaultAllNo(self: Self, slice: []const Self) ?bool {
-            var has_null = false;
-            for (slice) |item| {
-                if (eq(self, item)) |r| {
-                    if (r) return false;
-                } else has_null = true;
-            }
-
-            return if (has_null) null else true;
-        }
-
-        fn defaultAnyNo(self: Self, slice: []const Self) ?bool {
-            var has_null = false;
-            for (slice) |item| {
-                if (no(self, item)) |r| {
-                    if (r) return true;
-                } else has_null = true;
-            }
-
-            return if (has_null) null else false;
-        }
-
+        const Self: type = contract.default(.Self, Contractor);
         const default_sample: []const Self = &[_]Self{};
+        const sample = contract.default(.sample, default_sample);
         const BoundsError = error{OutOfBounds};
 
         /// This namespace contains functions and tests for the validity of the `PartialEquivalent`
@@ -689,41 +419,6 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 };
             }
 
-            pub fn testingNo(s: []const Self) !void {
-                if (contract.hasClause(.no)) return;
-                for (s) |x| for (s) |y|
-                    if (maybeEq(no(x, y), eq(x, y)))
-                        return error.MisimplementedNo;
-            }
-
-            pub fn testingAllEq(s: []const Self) !void {
-                if (contract.hasClause(.allEq)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (!maybeEq(allEq(x, s[start..end]), defaultAllEq(x, s[start..end])))
-                        return error.MisimplementedAllEq;
-            }
-
-            pub fn testingAnyEq(s: []const Self) !void {
-                if (contract.hasClause(.anyEq)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (!maybeEq(anyEq(x, s[start..end]), defaultAnyEq(x, s[start..end])))
-                        return error.MisimplementedAnyEq;
-            }
-
-            pub fn testingAllNo(s: []const Self) !void {
-                if (contract.hasClause(.allNo)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (!maybeEq(allNo(x, s[start..end]), defaultAllNo(x, s[start..end])))
-                        return error.MisimplementedAllNo;
-            }
-
-            pub fn testingAnyNo(s: []const Self) !void {
-                if (contract.hasClause(.anyNo)) return;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end|
-                    if (!maybeEq(anyNo(x, s[start..end]), defaultAnyNo(x, s[start..end])))
-                        return error.MisimplementedAnyNo;
-            }
-
             fn maybeEq(a: ?bool, b: ?bool) bool {
                 return if (a) |yes_a| {
                     if (b) |yes_b| yes_a == yes_b else return false;
@@ -740,26 +435,6 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
 
             test "PartialEquivalent: Almost Transitivity" {
                 try testingAlmostTransitivity(sample);
-            }
-
-            test "PartialEquivalent: no" {
-                try testingNo(sample);
-            }
-
-            test "PartialEquivalent: allEq" {
-                try testingAllEq(sample);
-            }
-
-            test "PartialEquivalent: anyEq" {
-                try testingAnyEq(sample);
-            }
-
-            test "PartialEquivalent: allNo" {
-                try testingAllNo(sample);
-            }
-
-            test "PartialEquivalent: anyNo" {
-                try testingAnyNo(sample);
             }
         };
     };

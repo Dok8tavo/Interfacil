@@ -16,6 +16,25 @@ pub const Order = enum(i3) {
     pub const OptEq = PartialEquivalent(?Order, .{});
 };
 
+/// # Ordered
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
 pub fn Ordered(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -141,6 +160,25 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
     }.compare;
 }
 
+/// # PartialOrdered
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
 pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -176,6 +214,7 @@ pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type
     };
 }
 
+/// TODO
 pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
     return struct {
         fn partialCompareItems(c: anytype, d: @TypeOf(c), order: Order) ?Order {

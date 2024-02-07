@@ -1,12 +1,30 @@
 const std = @import("std");
 const contracts = @import("contracts.zig");
 
+/// # Allocating
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
 pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
 
         const Self: type = contract.default(.Self, Contractor);
-        const ConstSelf: type = contract.default(.ConstSelf, *const Self);
         const VarSelf: type = contract.default(.VarSelf, *Self);
         const Error: type = std.mem.Allocator.Error;
 

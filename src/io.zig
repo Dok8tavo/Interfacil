@@ -5,7 +5,26 @@ const contracts = @import("contracts.zig");
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
-/// This interface is straightly taken from `std.io.AnyReader`.
+
+/// # Readable
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
 pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -305,6 +324,7 @@ pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
     };
 }
 
+/// TODO
 pub const Reader = struct {
     ctx: *anyopaque,
     vtable: struct {
@@ -318,7 +338,26 @@ pub const Reader = struct {
     pub usingnamespace Readable(Reader, .{ .read = readWrapper, .VarSelf = Reader });
 };
 
-/// This interface is straightly taken from `std.io.Writer`.
+
+/// # Writeable
+///
+/// TODO
+///
+/// ## Clauses
+///
+/// TODO
+///
+/// ## Declarations
+///
+/// TODO
+///
+/// ## Usage
+///
+/// TODO
+///
+/// ## Testing
+///
+/// TODO
 pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
@@ -389,6 +428,7 @@ pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     };
 }
 
+/// TODO
 pub const Writer = struct {
     ctx: *anyopaque,
     vtable: struct {
