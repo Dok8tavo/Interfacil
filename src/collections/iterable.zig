@@ -25,7 +25,8 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
         const contract = contracts.Contract(Contractor, clauses);
 
         const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = contract.default(.VarSelf, *Self);
+        const mut_by_value: type = contract.default(.mut_by_value, false);
+        const VarSelf: type = if (mut_by_value) Self else *Self;
         const Item = contract.require(.Item, type);
 
         pub const curr = contract.require(.curr, fn (Self) ?Item);
@@ -45,7 +46,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             return curr(self);
         }
 
-        pub fn asIterator(self: VarSelf) Iterator(Item) {
+        pub fn asIterator(self: *Self) Iterator(Item) {
             return Iterator(Item){
                 .ctx = self,
                 .vtable = .{
@@ -110,14 +111,15 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
         const contract = contracts.Contract(Contractor, clauses);
 
         const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = contract.default(.VarSelf, *Self);
+        const VarSelf: type = if (mut_by_value) Self else *Self;
+        const mut_by_value: type = contract.default(.mut_by_value, false);
         const Item = contract.require(.Item, type);
         const skipBack = contract.require(.skipBack, fn (Self) Item);
 
         const forwards_iterable = Iterable(Contractor, clauses);
         const backwards_iterable = Iterable(Contractor, .{
             .Self = Self,
-            .VarSelf = VarSelf,
+            .mut_by_value = mut_by_value,
             .Item = Item,
             .skip = skipBack,
             .curr = forwards_iterable.curr,
@@ -128,7 +130,7 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
         pub const prev = backwards_iterable.next;
         pub const skipBackTimes = backwards_iterable.skipTimes;
 
-        pub fn asBidirectionIterator(self: Self) BidirectionIterator(Item) {
+        pub fn asBidirectionIterator(self: *Self) BidirectionIterator(Item) {
             return BidirectionIterator(Item){
                 .ctx = self,
                 .vtable = .{
@@ -139,13 +141,13 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
             };
         }
 
-        pub fn asBackwardsIterator(self: Self) Iterator(Item) {
+        pub fn asBackwardsIterator(self: *Self) Iterator(Item) {
             return Backwards.asIterator(self);
         }
 
         pub const Backwards = BidirectionIterable(Contractor, .{
             .Self = Self,
-            .VarSelf = VarSelf,
+            .mut_by_value = mut_by_value,
             .Item = Item,
             .skip = backwards_iterable.skip,
             .skipBack = forwards_iterable.skip,
@@ -179,7 +181,7 @@ pub fn BidirectionIterator(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Iterator, .{
-            .VarSelf = Iterator,
+            .mut_by_value = true,
             .Item = Item,
             .curr = currFn,
             .skip = skipFn,
@@ -209,6 +211,7 @@ pub fn SliceIterator(comptime Item: type) type {
         }
 
         pub usingnamespace BidirectionIterable(SliceIterator, .{
+            .mut_by_value = true,
             .curr = currWrapper,
             .skip = skipWrapper,
             .skipBack = skipBackWrapper,

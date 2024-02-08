@@ -25,7 +25,8 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         const contract = contracts.Contract(Contractor, clauses);
 
         const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = contract.default(.VarSelf, *Self);
+        const mut_by_value: bool = contract.default(.mut_by_value, false);
+        const VarSelf: type = if (mut_by_value) Self else Self;
         const Error: type = std.mem.Allocator.Error;
 
         const allocFn = contract.require(.alloc, fn (
@@ -485,6 +486,6 @@ const Allocator = struct {
         .alloc = allocWrapper,
         .resize = resizeWrapper,
         .free = freeWrapper,
-        .VarSelf = Allocator,
+        .mut_by_value = true,
     });
 };

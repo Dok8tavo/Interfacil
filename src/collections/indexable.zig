@@ -5,20 +5,21 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
         const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = contract.default(.VarSelf, *Self);
+        const mut_by_value: bool = contract.default(.mut_by_value, false);
+        const VarSelf = if (mut_by_value) Self else *Self;
         const Item = contract.require(.Item, type);
 
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
-        const set = contract.require(.set, fn (self: *Self, index: usize, item: Item) void);
+        const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) void);
 
-        pub fn setItem(self: *Self, index: usize, item: Item) ?Item {
+        pub fn setItem(self: VarSelf, index: usize, item: Item) ?Item {
             const old = getItem(index, item) orelse return null;
             set(self, index, item);
             return old;
         }
 
         pub const IndexableIterator = struct {
-            context: *Self,
+            context: *const Self,
             index: usize = 0,
 
             fn currWrapper(self: IndexableIterator) ?Item {
@@ -77,7 +78,7 @@ pub fn Indexer(comptime Item: type) type {
         }
 
         pub usingnamespace Indexable(Self, .{
-            .VarSelf = Self,
+            .mut_by_value = true,
             .Item = Item,
             .get = getWrapper,
             .set = setWrapper,

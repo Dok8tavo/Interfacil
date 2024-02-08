@@ -7,7 +7,8 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
         const contract = contracts.Contract(Contractor, clauses);
         const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = contract.default(.VarSelf, *Self);
+        const mut_by_value: bool = contract.default(.mut_by_value, false);
+        const VarSelf: type = if (mut_by_value) Self else *Self;
         const Item = contract.require(.Item, type);
 
         const sliceFn = contract.require(.sliceFn, fn (
@@ -19,14 +20,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
         const max_usize = std.math.maxInt(usize);
 
         fn asValue(self: VarSelf) Self {
-            return switch (VarSelf) {
-                Self => self,
-                *Self => self.*,
-                else => misc.compileError(
-                    "The `{s}.Sliceable.VarSelf` type must either be `{s}` or `*{s}`, not `{s}!",
-                    .{ @typeName(Contractor), @typeName(Self), @typeName(Self), @typeName(VarSelf) },
-                ),
-            };
+            return if (mut_by_value) self else self.*;
         }
 
         pub fn getAllSlice(self: Self) []const Item {
@@ -97,7 +91,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
 
         pub usingnamespace indexable.Indexable(Contractor, .{
             .Self = Self,
-            .VarSelf = VarSelf,
+            .mut_by_value = mut_by_value,
             .Item = Item,
             .get = getItemWrapper,
             .set = setItemWrapper,
@@ -128,7 +122,7 @@ pub fn Slicer(comptime Item: type) type {
         }
 
         pub usingnamespace Sliceable(Self, .{
-            .VarSelf = Self,
+            .mut_by_value = true,
             .Item = Item,
             .sliceFn = sliceWrapper,
         });
