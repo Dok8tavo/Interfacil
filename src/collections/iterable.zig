@@ -1,4 +1,4 @@
-const contracts = @import("contracts.zig");
+const contracts = @import("../contracts.zig");
 
 /// # Iterable
 ///
@@ -84,7 +84,6 @@ pub fn Iterator(comptime Item: type) type {
         });
     };
 }
-
 
 /// # BidirectionIterable
 ///

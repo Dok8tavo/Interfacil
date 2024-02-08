@@ -8,5 +8,6 @@ pub const comparison = @import("comparison.zig");
 pub const contracts = @import("contracts.zig");
 pub const io = @import("io.zig");
 pub const iteration = @import("iteration.zig");
-pub const mem = @import("mem.zig");
+pub const memory = @import("memory.zig");
 pub const misc = @import("misc.zig");
+pub const members = @import("members.zig");
