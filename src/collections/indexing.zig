@@ -66,15 +66,15 @@ pub fn Indexer(comptime Item: type) type {
         context: *anyopaque,
         vtable: struct {
             get: *const fn (*anyopaque, usize) ?Item,
-            set: *const fn (*anyopaque, usize, Item) void,
+            set: *const fn (*anyopaque, usize, Item) error{OutOfBounds}!void,
         },
 
         fn getWrapper(self: Self, index: usize) ?Item {
             return self.vtable.get(self.context, index);
         }
 
-        fn setWrapper(self: Self, index: usize, item: Item) void {
-            self.vtable.set(self.context, index, item);
+        fn setWrapper(self: Self, index: usize, item: Item) error{OutOfBounds}!void {
+            try self.vtable.set(self.context, index, item);
         }
 
         pub usingnamespace Indexable(Self, .{
