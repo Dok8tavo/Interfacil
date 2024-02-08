@@ -29,16 +29,20 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
-        pub fn asSlice(self: Self) []const Item {
+        pub fn getAllSlice(self: Self) []const Item {
             return sliceFn(self, 0, max_usize);
         }
 
+        pub fn getAllVarSlice(self: VarSelf) []Item {
+            return @constCast(getAllSlice(self));
+        }
+
         pub fn asVarSlice(self: VarSelf) []Item {
-            return @constCast(asSlice(asValue(self)));
+            return @constCast(getAllSlice(asValue(self)));
         }
 
         pub fn getLength(self: Self) usize {
-            return asSlice(self).len;
+            return getAllSlice(self).len;
         }
 
         pub fn getSliced(self: Self, start: ?usize, length: ?usize) []const Item {
@@ -81,12 +85,12 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             return sliceFn(self, @min(s, e), @max(s, e) - @min(s, e));
         }
 
-        fn getItemFn(self: Self, index: usize) ?Item {
+        fn getItemWrapper(self: Self, index: usize) ?Item {
             const s = getSliced(self, index, 1) orelse return null;
             return s[0];
         }
 
-        fn setItemFn(self: VarSelf, index: usize, value: Item) void {
+        fn setItemWrapper(self: VarSelf, index: usize, value: Item) void {
             const s = getVarSliced(self, index, 1);
             s[0] = value;
         }
@@ -95,8 +99,8 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             .Self = Self,
             .VarSelf = VarSelf,
             .Item = Item,
-            .get = getItemFn,
-            .set = setItemFn,
+            .get = getItemWrapper,
+            .set = setItemWrapper,
         });
 
         pub fn asSlicer(self: Self) Slicer(Item) {
@@ -119,14 +123,14 @@ pub fn Slicer(comptime Item: type) type {
             slice: *const fn (*anyopaque, usize, usize) []const Item,
         },
 
-        fn sliceFn(self: Self, start: usize, length: usize) []const Item {
+        fn sliceWrapper(self: Self, start: usize, length: usize) []const Item {
             return self.vtable.slice(self.context, start, length);
         }
 
         pub usingnamespace Sliceable(Self, .{
             .VarSelf = Self,
             .Item = Item,
-            .sliceFn = sliceFn,
+            .sliceFn = sliceWrapper,
         });
     };
 }

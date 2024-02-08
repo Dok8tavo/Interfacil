@@ -1,9 +1,10 @@
 const contracts = @import("../contracts.zig");
+const iterable = @import("iterable.zig");
 
-pub fn Indexable(comptime Contract: type, comptime clauses: anytype) type {
+pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
-        const contract = contracts.Contract(Contract, clauses);
-        const Self: type = contract.default(.Self, Contract);
+        const contract = contracts.Contract(Contractor, clauses);
+        const Self: type = contract.default(.Self, Contractor);
         const VarSelf: type = contract.default(.VarSelf, *Self);
         const Item = contract.require(.Item, type);
 
@@ -14,6 +15,35 @@ pub fn Indexable(comptime Contract: type, comptime clauses: anytype) type {
             const old = getItem(index, item) orelse return null;
             set(self, index, item);
             return old;
+        }
+
+        pub const IndexableIterator = struct {
+            context: *Self,
+            index: usize = 0,
+
+            fn currWrapper(self: IndexableIterator) ?Item {
+                return getItem(self.index, self.context.*);
+            }
+
+            fn skipWrapper(self: *IndexableIterator) void {
+                self.index += 1;
+            }
+
+            fn skipBackWrapper(self: *IndexableIterator) void {
+                self.index -|= 1;
+            }
+
+            pub usingnamespace iterable.BidirectionIterable(Contractor, .{
+                .Self = IndexableIterator,
+                .Item = Item,
+                .curr = currWrapper,
+                .skip = skipWrapper,
+                .skipBack = skipBackWrapper,
+            });
+        };
+
+        pub fn iterator(self: Self) IndexableIterator {
+            return IndexableIterator{ .context = &self };
         }
 
         pub fn asIndexer(self: Self) Indexer(Item) {
@@ -38,19 +68,19 @@ pub fn Indexer(comptime Item: type) type {
             set: *const fn (*anyopaque, usize, Item) void,
         },
 
-        fn getFn(self: Self, index: usize) ?Item {
+        fn getWrapper(self: Self, index: usize) ?Item {
             return self.vtable.get(self.context, index);
         }
 
-        fn setFn(self: Self, index: usize, item: Item) void {
+        fn setWrapper(self: Self, index: usize, item: Item) void {
             self.vtable.set(self.context, index, item);
         }
 
         pub usingnamespace Indexable(Self, .{
             .VarSelf = Self,
             .Item = Item,
-            .get = getFn,
-            .set = setFn,
+            .get = getWrapper,
+            .set = setWrapper,
         });
     };
 }
