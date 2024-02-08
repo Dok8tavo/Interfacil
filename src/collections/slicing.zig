@@ -4,25 +4,18 @@ const contracts = @import("../contracts.zig");
 const indexing = @import("indexing.zig");
 
 pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const mut_by_value: bool = contract.default(.mut_by_value, false);
+    const VarSelf: type = if (mut_by_value) Self else *Self;
+    const Item = contract.require(.Item, type);
+    const sliceFn = contract.require(.sliceFn, fn (
+        self: Self,
+        start: usize,
+        length: usize,
+    ) []const Item);
+    const max_usize = std.math.maxInt(usize);
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-        const Self: type = contract.default(.Self, Contractor);
-        const mut_by_value: bool = contract.default(.mut_by_value, false);
-        const VarSelf: type = if (mut_by_value) Self else *Self;
-        const Item = contract.require(.Item, type);
-
-        const sliceFn = contract.require(.sliceFn, fn (
-            self: Self,
-            start: usize,
-            length: usize,
-        ) []const Item);
-
-        const max_usize = std.math.maxInt(usize);
-
-        fn asValue(self: VarSelf) Self {
-            return if (mut_by_value) self else self.*;
-        }
-
         pub fn getAllSlice(self: Self) []const Item {
             return sliceFn(self, 0, max_usize);
         }
@@ -79,16 +72,6 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             return sliceFn(self, @min(s, e), @max(s, e) - @min(s, e));
         }
 
-        fn getItemWrapper(self: Self, index: usize) ?Item {
-            const s = getSliced(self, index, 1) orelse return null;
-            return s[0];
-        }
-
-        fn setItemWrapper(self: VarSelf, index: usize, value: Item) void {
-            const s = getVarSliced(self, index, 1);
-            s[0] = value;
-        }
-
         pub usingnamespace indexing.Indexable(Contractor, .{
             .Self = Self,
             .mut_by_value = mut_by_value,
@@ -104,6 +87,20 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
                     .slice = &sliceFn,
                 },
             };
+        }
+
+        fn getItemWrapper(self: Self, index: usize) ?Item {
+            const s = getSliced(self, index, 1) orelse return null;
+            return s[0];
+        }
+
+        fn setItemWrapper(self: VarSelf, index: usize, value: Item) void {
+            const s = getVarSliced(self, index, 1);
+            s[0] = value;
+        }
+
+        fn asValue(self: VarSelf) Self {
+            return if (mut_by_value) self else self.*;
         }
     };
 }

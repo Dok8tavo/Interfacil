@@ -2,15 +2,15 @@ const contracts = @import("../contracts.zig");
 const iterating = @import("iterating.zig");
 
 pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
-    return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-        const Self: type = contract.default(.Self, Contractor);
-        const mut_by_value: bool = contract.default(.mut_by_value, false);
-        const VarSelf = if (mut_by_value) Self else *Self;
-        const Item = contract.require(.Item, type);
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const mut_by_value: bool = contract.default(.mut_by_value, false);
+    const VarSelf = if (mut_by_value) Self else *Self;
+    const Item = contract.require(.Item, type);
+    const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) error{OutOfBounds}!void);
 
+    return struct {
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
-        const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) error{OutOfBounds}!void);
 
         pub fn setItem(self: VarSelf, index: usize, item: Item) error{OutOfBounds}!?Item {
             const old = getItem(index, item) orelse return null;

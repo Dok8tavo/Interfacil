@@ -21,14 +21,13 @@ const contracts = @import("../contracts.zig");
 /// TODO
 ///
 pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const mut_by_value: type = contract.default(.mut_by_value, false);
+    const VarSelf: type = if (mut_by_value) Self else *Self;
+    const Item = contract.require(.Item, type);
+
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
-        const Self: type = contract.default(.Self, Contractor);
-        const mut_by_value: type = contract.default(.mut_by_value, false);
-        const VarSelf: type = if (mut_by_value) Self else *Self;
-        const Item = contract.require(.Item, type);
-
         pub const curr = contract.require(.curr, fn (Self) ?Item);
         pub const skip = contract.require(.skip, fn (VarSelf) void);
 
@@ -107,24 +106,21 @@ pub fn Iterator(comptime Item: type) type {
 /// TODO
 ///
 pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const mut_by_value: type = contract.default(.mut_by_value, false);
+    const Item = contract.require(.Item, type);
+    const skipBack = contract.require(.skipBack, fn (Self) Item);
+    const forwards_iterable = Iterable(Contractor, clauses);
+    const backwards_iterable = Iterable(Contractor, .{
+        .Self = Self,
+        .mut_by_value = mut_by_value,
+        .Item = Item,
+        .skip = skipBack,
+        .curr = forwards_iterable.curr,
+    });
+    
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
-        const Self: type = contract.default(.Self, Contractor);
-        const VarSelf: type = if (mut_by_value) Self else *Self;
-        const mut_by_value: type = contract.default(.mut_by_value, false);
-        const Item = contract.require(.Item, type);
-        const skipBack = contract.require(.skipBack, fn (Self) Item);
-
-        const forwards_iterable = Iterable(Contractor, clauses);
-        const backwards_iterable = Iterable(Contractor, .{
-            .Self = Self,
-            .mut_by_value = mut_by_value,
-            .Item = Item,
-            .skip = skipBack,
-            .curr = forwards_iterable.curr,
-        });
-
         pub usingnamespace forwards_iterable;
         pub const prevTimes = backwards_iterable.nextTimes;
         pub const prev = backwards_iterable.next;
