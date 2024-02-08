@@ -1,7 +1,7 @@
 const std = @import("std");
 const misc = @import("../misc.zig");
 const contracts = @import("../contracts.zig");
-const indexable = @import("indexable.zig");
+const indexing = @import("indexing.zig");
 
 pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
@@ -89,7 +89,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             s[0] = value;
         }
 
-        pub usingnamespace indexable.Indexable(Contractor, .{
+        pub usingnamespace indexing.Indexable(Contractor, .{
             .Self = Self,
             .mut_by_value = mut_by_value,
             .Item = Item,

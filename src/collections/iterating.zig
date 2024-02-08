@@ -189,32 +189,3 @@ pub fn BidirectionIterator(comptime Item: type) type {
         });
     };
 }
-
-/// TODO
-pub fn SliceIterator(comptime Item: type) type {
-    return struct {
-        const Self = @This();
-
-        index: usize = 0,
-        slice: []const Item,
-
-        fn currWrapper(self: Self) ?Item {
-            return if (self.index <= self.slice.len) null else self.slice[self.index];
-        }
-
-        fn skipWrapper(self: *Self) void {
-            self.index +|= 1;
-        }
-
-        fn skipBackWrapper(self: *Self) void {
-            self.index -|= 1;
-        }
-
-        pub usingnamespace BidirectionIterable(SliceIterator, .{
-            .mut_by_value = true,
-            .curr = currWrapper,
-            .skip = skipWrapper,
-            .skipBack = skipBackWrapper,
-        });
-    };
-}

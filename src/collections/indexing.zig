@@ -1,5 +1,5 @@
 const contracts = @import("../contracts.zig");
-const iterable = @import("iterable.zig");
+const iterating = @import("iterating.zig");
 
 pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
     return struct {
@@ -34,7 +34,7 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
                 self.index -|= 1;
             }
 
-            pub usingnamespace iterable.BidirectionIterable(Contractor, .{
+            pub usingnamespace iterating.BidirectionIterable(Contractor, .{
                 .Self = IndexableIterator,
                 .Item = Item,
                 .curr = currWrapper,
