@@ -34,6 +34,21 @@ pub fn FieldManaged(comptime Contractor: type, comptime clauses: anytype) type {
 
         pub const setField = contract.default(.setField, defaultSetField);
         pub const getField = contract.default(.getField, defaultGetField);
+        pub fn getFieldFn(comptime field: FieldLiteral) fn (Self) Field(field) {
+            return struct {
+                pub fn call(self: Self) Field(field) {
+                    return getField(self, field);
+                }
+            }.call;
+        }
+
+        pub fn setFieldFn(comptime field: FieldLiteral) fn (*Self, Field(field)) Field(field) {
+            return struct {
+                pub fn call(self: Self, value: Field(field)) Field(field) {
+                    return setField(self, field, value);
+                }
+            }.call;
+        }
     };
 }
 
@@ -79,5 +94,29 @@ pub fn VariantManaged(comptime Contractor: type, comptime clauses: anytype) type
         pub const setVariant = contract.default(.setVariant, defaultSetVariant);
         pub const getVariant = contract.default(.getVariant, defaultGetVariant);
         pub const setToVariant = contract.default(.setToVariant, defaultSetToVariant);
+
+        pub fn setVariantFn(comptime variant: VariantLiteral) fn (*Self, Variant(variant)) ?Variant(variant) {
+            return struct {
+                pub fn call(self: *Self, value: Variant(variant)) ?Variant(variant) {
+                    return setVariant(self, variant, value);
+                }
+            }.call;
+        }
+
+        pub fn setToVariantFn(comptime variant: VariantLiteral) fn (*Self, Variant(variant)) void {
+            return struct {
+                pub fn call(self: *Self, value: Variant(variant)) void {
+                    setToVariant(self, variant, value);
+                }
+            }.call;
+        }
+
+        pub fn getVariantFn(comptime variant: VariantLiteral) fn (Self) Variant(variant) {
+            return struct {
+                pub fn call(self: Self) Variant(variant) {
+                    return getVariant(self, variant);
+                }
+            }.call;
+        }
     };
 }
