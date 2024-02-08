@@ -10,11 +10,11 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         const Item = contract.require(.Item, type);
 
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
-        const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) void);
+        const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) error{OutOfBounds}!void);
 
-        pub fn setItem(self: VarSelf, index: usize, item: Item) ?Item {
+        pub fn setItem(self: VarSelf, index: usize, item: Item) error{OutOfBounds}!?Item {
             const old = getItem(index, item) orelse return null;
-            set(self, index, item);
+            try set(self, index, item);
             return old;
         }
 
