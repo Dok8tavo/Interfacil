@@ -1,6 +1,8 @@
 const std = @import("std");
 const misc = @import("../misc.zig");
 const contracts = @import("../contracts.zig");
+const collections = @import("../collections.zig");
+const Iterator = collections.iterating.Iterator;
 
 /// # Equivalent
 ///
@@ -27,9 +29,10 @@ const contracts = @import("../contracts.zig");
 ///
 /// TODO
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const sample: []const Self = contract.default(.sample, @as([]const Self, &[_]Self{}));
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
         /// This function is the equivalency function from the `Equivalent` interface. It's assumed
         /// to be:
         /// - reflexive: `∀x : eq(x, x)`
@@ -37,144 +40,67 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
         /// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
         pub const eq: fn (self: Self, other: Self) bool = contract.default(.eq, equalsFn(Self));
 
-        /// This function is the non-equivalency function from the `Equivalent` interface. It's
-        /// assumed to be:
-        /// - antireflexive: `∀x : !no(x, x)`
-        /// - symmetric: `∀x, y : no(x, y) == no(y, x)`
-        /// - the opposite of `eq`: `∀x, y : eq(x, y) != no(x, y)`
-        pub fn no(self: Self, other: Self) bool {
-            return !eq(self, other);
+        pub fn all(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
+            return firstEq(self, !is_eq, iterator) == null;
         }
 
-        pub fn allEq(self: Self, slice: []const Self, from: From) bool {
-            return !anyNo(self, slice, from);
+        pub fn any(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
+            return firstEq(self, is_eq, iterator) != null;
         }
 
-        pub fn anyEq(self: Self, slice: []const Self, from: From) bool {
-            return switch (from) {
-                .first => firstIndexEq(self, slice),
-                .last => lastIndexEq(self, slice),
-            } != null;
-        }
-
-        pub fn allNo(self: Self, slice: []const Self, from: From) bool {
-            return !anyEq(self, slice, from);
-        }
-
-        pub fn anyNo(self: Self, slice: []const Self, from: From) bool {
-            return switch (from) {
-                .first => firstIndexNo(self, slice),
-                .last => lastIndexNo(self, slice),
-            } != null;
-        }
-
-        pub const filteredEq: fn (
-            self: Self,
-            slice: []const Self,
-            into: []Self,
-        ) BoundsError![]Self = contract.default(.filteredEq, defaultFilteredEq);
-
-        pub const filteredNo: fn (
-            self: Self,
-            slice: []const Self,
-            into: []Self,
-        ) BoundsError![]Self = contract.default(.filteredNo, defaultFilteredNo);
-
-        pub fn filterEq(self: Self, slice: []Self) []Self {
-            return filteredEq(self, slice, slice) catch unreachable;
-        }
-
-        pub fn filterNo(self: Self, slice: []Self) []Self {
-            return filteredNo(self, slice, slice) catch unreachable;
-        }
-
-        pub fn firstEq(self: Self, slice: []const Self) ?Self {
-            const index = firstIndexEq(self, slice) orelse return null;
-            return slice[index];
-        }
-
-        pub fn firstNo(self: Self, slice: []const Self) ?Self {
-            const index = firstIndexNo(self, slice) orelse return null;
-            return slice[index];
-        }
-
-        pub const firstIndexEq: fn (self: Self, slice: []const Self) ?usize =
-            contract.default(.firstIndexEq, defaultFirstIndexEq);
-
-        pub const firstIndexNo: fn (self: Self, slice: []const Self) ?usize =
-            contract.default(.firstIndexNo, defaultFirstIndexNo);
-
-        pub fn lastEq(self: Self, slice: []const Self) ?Self {
-            const index = lastIndexEq(self, slice) orelse return null;
-            return slice[index];
-        }
-
-        pub fn lastNo(self: Self, slice: []const Self) ?Self {
-            const index = lastIndexNo(self, slice) orelse return null;
-            return slice[index];
-        }
-
-        pub const lastIndexEq: fn (self: Self, slice: []const Self) ?usize =
-            contract.default(.lastIndexEq, defaultLastIndexEq);
-
-        pub const lastIndexNo: fn (self: Self, slice: []const Self) ?usize =
-            contract.default(.lastIndexNo, defaultLastIndexNo);
-
-        const Self: type = contract.default(.Self, Contractor);
-        const sample: []const Self = contract.default(.sample, default_sample);
-        const max_sample_length = contract.default(.max_sample_length, @max(sample.len, 16));
-        const From = enum { first, last };
-
-        fn defaultFilteredEq(self: Self, slice: []const Self, into: []Self) BoundsError![]Self {
+        pub fn firstEqIndex(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?usize {
             var index: usize = 0;
-            for (slice) |item| if (no(self, item)) {
-                if (index == into.len) return BoundsError.OutOfBounds;
-                into[index] = item;
+            return while (iterator.next()) |item| {
+                if (eq(self, item) == is_eq) break index;
                 index += 1;
+            } else null;
+        }
+
+        pub fn firstEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?Self {
+            return while (iterator.next()) |item| {
+                if (eq(self, item) == is_eq) break item;
+            } else null;
+        }
+
+        pub fn filter(
+            self: Self,
+            comptime is_eq: bool,
+            iterator: Iterator(Self),
+        ) FilterIterator(is_eq) {
+            return FilterIterator(is_eq){
+                .filter = self,
+                .iterator = iterator,
             };
-
-            return into[0..index];
         }
 
-        fn defaultFilteredNo(self: Self, slice: []const Self, into: []Self) BoundsError![]Self {
-            var index: usize = 0;
-            for (slice) |item| if (eq(self, item)) {
-                if (index == into.len) return BoundsError.OutOfBounds;
-                into[index] = item;
-                index += 1;
+        fn FilterIterator(comptime is_eq: bool) type {
+            return struct {
+                const Filtered = @This();
+
+                filter: Self,
+                iterator: Iterator(Self),
+
+                fn currFn(self: Filtered) ?Self {
+                    return while (self.iterator.curr()) |item| {
+                        if (eq(self, item) == is_eq)
+                            break item
+                        else
+                            self.iterator.skip();
+                    } else null;
+                }
+
+                fn skipFn(self: Filtered) void {
+                    self.iterator.skip();
+                }
+
+                pub usingnamespace collections.iterating.Iterable(Filtered, .{
+                    .mut_by_value = true,
+                    .curr = currFn,
+                    .skip = skipFn,
+                    .Item = Self,
+                });
             };
-
-            return into[0..index];
         }
-
-        fn defaultFirstIndexEq(self: Self, slice: []const Self) ?usize {
-            return for (slice, 0..) |item, i| {
-                if (eq(self, item)) break i;
-            } else null;
-        }
-
-        fn defaultFirstIndexNo(self: Self, slice: []const Self) ?usize {
-            return for (slice, 0..) |item, i| {
-                if (no(self, item)) break i;
-            } else null;
-        }
-
-        fn defaultLastIndexEq(self: Self, slice: []const Self) ?usize {
-            return for (1..slice.len + 1) |reverse_i| {
-                const i = slice.len - reverse_i;
-                if (eq(self, slice[i])) break i;
-            } else null;
-        }
-
-        fn defaultLastIndexNo(self: Self, slice: []const Self) ?usize {
-            return for (1..slice.len + 1) |reverse_i| {
-                const i = slice.len - reverse_i;
-                if (no(self, slice[i])) break i;
-            } else null;
-        }
-
-        const default_sample: []const Self = &[_]Self{};
-        const BoundsError = error{OutOfBounds};
 
         /// This namespace contains functions and tests for the validity of the `Equivalent`
         /// interface. The tests are using the `sample` clause on the testing functions.
@@ -182,7 +108,7 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             pub fn testingReflexivity(s: []const Self) !void {
                 if (contract.hasClause(.eq)) return;
                 for (s) |x|
-                    if (no(x, x))
+                    if (!eq(x, x))
                         return error.NoReflexivity;
             }
 
@@ -196,40 +122,8 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             pub fn testingTransitivity(s: []const Self) !void {
                 if (contract.hasClause(.eq)) return;
                 for (s) |x| for (s) |y| for (s) |z|
-                    if (eq(x, y) and eq(y, z) and no(x, z))
+                    if (eq(x, y) and eq(y, z) and !eq(x, z))
                         return error.NoTransitivity;
-            }
-
-            pub fn testingFilteredEq(s: []const Self) !void {
-                if (contract.hasClause(.filteredEq)) return;
-                var buffer1: [max_sample_length]Self = undefined;
-                var buffer2: [max_sample_length]Self = undefined;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end| {
-                    const filtered1 = filteredEq(x, s[start..end], &buffer1);
-                    const filtered2 = defaultFilteredEq(x, s[start..end], &buffer2);
-                    if (filtered1) |f1| {
-                        if (filtered2) |f2| {
-                            if (f1.len != f2.len) return error.MisimplementedFilteredEq;
-                            for (f1) |y| if (no(x, y)) return error.MisimplementedFilteredEq;
-                        } else return error.MisimplementedFilteredEq;
-                    } else if (filtered2) |_| return error.MisimplementedFilteredEq;
-                };
-            }
-
-            pub fn testingFilteredNo(s: []const Self) !void {
-                if (contract.hasClause(.filteredNo)) return;
-                var buffer1: [max_sample_length]Self = undefined;
-                var buffer2: [max_sample_length]Self = undefined;
-                for (s) |x| for (0..s.len) |start| for (start..s.len) |end| {
-                    const filtered1 = filteredNo(x, s[start..end], &buffer1);
-                    const filtered2 = defaultFilteredNo(x, s[start..end], &buffer2);
-                    if (filtered1) |f1| {
-                        if (filtered2) |f2| {
-                            if (f1.len != f2.len) return error.MisimplementedFilteredEq;
-                            for (f1) |y| if (eq(x, y)) return error.MisimplementedFilteredEq;
-                        } else return error.MisimplementedFilteredEq;
-                    } else if (filtered2) |_| return error.MisimplementedFilteredEq;
-                };
             }
 
             test "Equivalent: Reflexivity" {
@@ -242,14 +136,6 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
 
             test "Equivalent: Transitivity" {
                 try testingTransitivity(sample);
-            }
-
-            test "Equivalent: filteredEq" {
-                try testingFilteredEq(sample);
-            }
-
-            test "Equivalent: filteredNo" {
-                try testingFilteredNo(sample);
             }
         };
     };
