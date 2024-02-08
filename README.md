@@ -18,12 +18,13 @@ makes it better), and their doc comments. Props to the zls people!
 - [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig) (for showcasing, do not use),
 - [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
 - [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig),
-- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
+- [`Indexable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig) and [`Indexer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig),
+- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig),
 - [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig),
 - [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig),
 - [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig),
 - [`Readable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
-- [`SliceIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
+- [`Sliceable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/slicing.zig) and [`Slicer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/slicing.zig),
 - [`Writeable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Writer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
 
 ## How to use static interfaces
