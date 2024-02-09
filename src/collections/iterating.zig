@@ -33,8 +33,10 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
         pub const skip = contract.require(.skip, fn (VarSelf) void);
 
         pub fn next(self: VarSelf) ?Item {
-            defer skip(self);
-            return curr(asValue(self));
+            if (curr(asValue(self))) |item| {
+                defer skip(self);
+                return item;
+            } else return null;
         }
 
         pub fn skipTimes(self: VarSelf, times: usize) void {

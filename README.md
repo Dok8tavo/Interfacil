@@ -15,8 +15,8 @@ makes it better), and their doc comments. Props to the zls people!
 
 ## Currently implemented in Interfacil
 
-- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/mem.zig) (for showcasing, do not use),
-- [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
+- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/memory.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/memory.zig) (for showcasing, do not use),
+- [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig),
 - [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig),
 - [`Indexable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig) and [`Indexer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig),
 - [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig),

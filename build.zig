@@ -24,7 +24,8 @@ pub fn build(b: *std.Build) !void {
     });
 
     const test_step = b.step("test", "Run all tests");
-    test_step.dependOn(&tests.step);
+    const run_tests = b.addRunArtifact(tests);
+    test_step.dependOn(&run_tests.step);
 
     const doc_step = b.step("doc", "Generate documentation");
     doc_step.dependOn(&lib.step);
