@@ -13,7 +13,7 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
 
         pub fn setItem(self: VarSelf, index: usize, item: Item) error{OutOfBounds}!?Item {
-            const old = getItem(index, item) orelse return null;
+            const old = getItem(asValue(self), index);
             try set(self, index, item);
             return old;
         }
@@ -47,14 +47,32 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
             return IndexableIterator{ .context = &self };
         }
 
-        pub fn asIndexer(self: Self) Indexer(Item) {
+        pub fn asIndexer(self: *Self) Indexer(Item) {
             return Indexer(Item){
-                .context = &self,
+                .context = self,
                 .vtable = .{
-                    .get = &getItem,
-                    .set = &set,
+                    .get = &struct {
+                        pub fn call(context: *anyopaque, index: usize) ?Item {
+                            const ctx: *Self = @alignCast(@ptrCast(context));
+                            return getItem(ctx.*, index);
+                        }
+                    }.call,
+                    .set = &struct {
+                        pub fn call(
+                            context: *anyopaque,
+                            index: usize,
+                            value: Item,
+                        ) error{OutOfBounds}!void {
+                            const ctx: *Self = @alignCast(@ptrCast(context));
+                            return set(ctx, index, value);
+                        }
+                    }.call,
                 },
             };
+        }
+
+        fn asValue(self: VarSelf) Self {
+            return if (mut_by_value) self else self.*;
         }
     };
 }

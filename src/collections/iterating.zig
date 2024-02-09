@@ -128,7 +128,7 @@ pub fn Iterator(comptime Item: type) type {
 pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
     const Self: type = contract.default(.Self, Contractor);
-    const mut_by_value: type = contract.default(.mut_by_value, false);
+    const mut_by_value = contract.default(.mut_by_value, false);
     const Item = contract.require(.Item, type);
     const skipBack = contract.require(.skipBack, fn (Self) Item);
     const forwards_iterable = Iterable(Contractor, clauses);
