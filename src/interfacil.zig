@@ -166,3 +166,28 @@ test "Container: indexer" {
     try expect(array[0] == -1000);
     try std.testing.expectError(error.OutOfBounds, indexer.setItem(100, 1000));
 }
+
+test "Container: indexable iterator" {
+    var array = [_]i32{ -4, 0, 4, 8 };
+    var container = Container{ .items = &array };
+    var indexable_iterator = container.iterator();
+
+    try std.testing.expectEqualDeep(indexable_iterator.next(), -4);
+    try std.testing.expectEqualDeep(indexable_iterator.next(), 0);
+    try std.testing.expectEqualDeep(indexable_iterator.next(), 4);
+    try std.testing.expectEqualDeep(indexable_iterator.next(), 8);
+    try std.testing.expectEqualDeep(indexable_iterator.next(), null);
+}
+
+test "Container: iterator" {
+    var array = [_]i32{ -4, 0, 4, 8 };
+    var container = Container{ .items = &array };
+    var indexable_iterator = container.iterator();
+    var iterator = indexable_iterator.asIterator();
+
+    try std.testing.expectEqualDeep(iterator.next(), -4);
+    try std.testing.expectEqualDeep(iterator.next(), 0);
+    try std.testing.expectEqualDeep(iterator.next(), 4);
+    try std.testing.expectEqualDeep(iterator.next(), 8);
+    try std.testing.expectEqualDeep(iterator.next(), null);
+}

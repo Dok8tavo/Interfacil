@@ -19,11 +19,11 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub const IndexableIterator = struct {
-            context: *const Self,
+            context: *Self,
             index: usize = 0,
 
             fn currWrapper(self: IndexableIterator) ?Item {
-                return getItem(self.index, self.context.*);
+                return getItem(self.context.*, self.index);
             }
 
             fn skipWrapper(self: *IndexableIterator) void {
@@ -43,8 +43,8 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
             });
         };
 
-        pub fn iterator(self: Self) IndexableIterator {
-            return IndexableIterator{ .context = &self };
+        pub fn iterator(self: *Self) IndexableIterator {
+            return IndexableIterator{ .context = self };
         }
 
         pub fn asIndexer(self: *Self) Indexer(Item) {
