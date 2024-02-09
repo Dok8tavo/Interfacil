@@ -25,14 +25,13 @@ const ArrayList = std.ArrayList;
 ///
 /// TODO
 pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.getSelf();
+    const VarSelf: type = contract.getVarSelf();
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-        const Self: type = contract.default(.Self, Contractor);
-        const mut_by_value: bool = contract.default(.mut_by_value, false);
-        const VarSelf = if (mut_by_value) Self else *Self;
+        pub const AllocReadError = ReadError || Allocator.Error || error{StreamTooLong};
+        pub const StreamError = ReadError || error{EndOfStream};
         pub const ReadError: type = contract.default(.ReadError, anyerror);
-        const AllocReadError = ReadError || Allocator.Error || error{StreamTooLong};
-        const StreamError = ReadError || error{EndOfStream};
 
         /// Returns the number of bytes read. It may be less than buffer.len.
         /// If the number of bytes read is 0, it means end of stream.
@@ -358,14 +357,12 @@ pub const Reader = struct {
 ///
 /// TODO
 pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.getSelf();
+    const VarSelf: type = contract.getVarSelf();
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
         pub const write = contract.require(.write, fn (VarSelf, []const u8) WriteError!usize);
         pub const WriteError: type = contract.default(.WriteError, anyerror);
-        const Self: type = contract.default(.Self, Contractor);
-        const mut_by_value = contract.default(.mut_by_value, false);
-        const VarSelf = if (mut_by_value) Self else *Self;
 
         pub fn writeAll(self: VarSelf, bytes: []const u8) WriteError!void {
             var index: usize = 0;

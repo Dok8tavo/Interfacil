@@ -23,9 +23,9 @@ const contracts = @import("../contracts.zig");
 ///
 pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.default(.Self, Contractor);
+    const Self: type = contract.getSelf();
     const mut_by_value = contract.default(.mut_by_value, false);
-    const VarSelf: type = if (mut_by_value) Self else *Self;
+    const VarSelf: type = contract.getVarSelf();
     const Item = contract.require(.Item, type);
 
     return struct {
@@ -57,7 +57,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             } else buffer[0..index];
         }
 
-        pub fn populateSliceAlloc(self: VarSelf, allocator: std.mem.Allocator) error{OutOfMemory}![]Item {
+        pub fn populateSliceAlloc(self: VarSelf, allocator: std.mem.Allocator,) error{OutOfMemory}![]Item {
             var array_list = std.ArrayList(Item).init(allocator);
             while (next(self)) |item| {
                 try array_list.append(item);

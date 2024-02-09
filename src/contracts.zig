@@ -84,6 +84,24 @@ pub fn Contract(
             return typeChecked(name, Clause);
         }
 
+        /// This function returns the `.Self` clause, by default `Contractor`.
+        pub fn getSelf() type {
+            return default(.Self, Contractor);
+        }
+
+        /// This function returns `*Self` if the `.mut_by_value` clause is `false` (which it is by
+        /// default), `Self` else.
+        pub fn getVarSelf() type {
+            const mut_by_value = default(.mut_by_value, false);
+            const Self = default(.Self, Contractor);
+            return if (mut_by_value) Self else *Self;
+        }
+
+        /// This function returns the `.sample` clause, by default an empty const slice of `Self`.
+        pub fn getSample() []const getSelf() {
+            return default(.sample, @as([]const getSelf(), &.{}));
+        }
+
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
             const Clause = @TypeOf(clause);

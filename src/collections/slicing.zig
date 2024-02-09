@@ -4,9 +4,9 @@ const indexing = @import("indexing.zig");
 
 pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.default(.Self, Contractor);
-    const mut_by_value: bool = contract.default(.mut_by_value, false);
-    const VarSelf: type = if (mut_by_value) Self else *Self;
+    const Self: type = contract.getSelf();
+    const VarSelf: type = contract.getVarSelf();
+    const mut_by_value = contract.default(.mut_by_value, false);
     const Item = contract.require(.Item, type);
     const sliceFn = contract.require(.sliceFn, fn (
         self: Self,

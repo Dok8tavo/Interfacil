@@ -30,8 +30,8 @@ const Iterator = collections.iterating.Iterator;
 /// TODO
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.default(.Self, Contractor);
-    const sample: []const Self = contract.default(.sample, @as([]const Self, &[_]Self{}));
+    const Self: type = contract.getSelf();
+    const sample: []const Self = contract.getSample();
     return struct {
         /// This function is the equivalency function from the `Equivalent` interface. It's assumed
         /// to be:
@@ -247,8 +247,8 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
 /// TODO
 pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.default(.Self, Contractor);
-    const sample = contract.default(.sample, @as([]const Self, &[_]Self{}));
+    const Self: type = contract.getSelf();
+    const sample: []const Self = contract.getSample();
     return struct {
         /// This function is the partial equivalency function from the `PartialEquivalent`
         /// interface. It's assumed to be:

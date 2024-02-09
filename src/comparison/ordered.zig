@@ -39,7 +39,7 @@ pub const Order = enum(i3) {
 /// TODO
 pub fn Ordered(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.default(.Self, Contractor);
+    const Self: type = contract.getSelf();
     return struct {
         pub const cmp: fn (Self, Self) Order = contract.default(.cmp, anyCompareFn(Self));
         pub usingnamespace Equivalent(Self, .{ .eq = struct {
@@ -188,7 +188,7 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
 /// TODO
 pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self = contract.default(.Self, Contractor);
+    const Self: type = contract.getSelf();
     return struct {
         pub const cmp: fn (Self, Self) ?Order = contract.default(.compare, anyCompareFn(Self));
         pub usingnamespace PartialEquivalent(Contractor, .{ .eq = struct {
