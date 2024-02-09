@@ -1,3 +1,4 @@
+const std = @import("std");
 const contracts = @import("../contracts.zig");
 
 /// # Iterable
@@ -43,6 +44,25 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
         pub fn nextTimes(self: VarSelf, times: usize) ?Item {
             skipTimes(self, times);
             return curr(self);
+        }
+
+        pub fn populateSliceBuffer(self: VarSelf, buffer: []Item) error{OutOfBounds}![]Item {
+            var index: usize = 0;
+            return while (next(self)) |item| {
+                if (index == buffer.len) break error.OutOfBounds;
+                buffer[index] = item;
+                index += 1;
+            } else buffer[0..index];
+        }
+
+        pub fn populateSliceAlloc(self: VarSelf, allocator: std.mem.Allocator) error{OutOfMemory}![]Item {
+            var array_list = std.ArrayList(Item).init(allocator);
+            while (next(self)) |item| {
+                try array_list.append(item);
+            }
+
+            array_list.shrinkRetainingCapacity(array_list.items.len);
+            return array_list.items;
         }
 
         pub fn asIterator(self: *Self) Iterator(Item) {
@@ -119,7 +139,7 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
         .skip = skipBack,
         .curr = forwards_iterable.curr,
     });
-    
+
     return struct {
         pub usingnamespace forwards_iterable;
         pub const prevTimes = backwards_iterable.nextTimes;
