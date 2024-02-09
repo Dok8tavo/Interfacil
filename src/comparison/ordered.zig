@@ -1,5 +1,5 @@
 const std = @import("std");
-const misc = @import("../misc.zig");
+const utils = @import("../utils.zig");
 const contracts = @import("../contracts.zig");
 const equivalent = @import("equivalent.zig");
 const Equivalent = equivalent.Equivalent;
@@ -148,13 +148,13 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
                 .Pointer => |Pointer| switch (Pointer.size) {
                     .One => anyCompare(a.*, b.*),
                     // TODO: better errors!
-                    else => misc.compileError(
+                    else => utils.compileError(
                         "The `{s}.anyCompare` function can't compare complex types like `{s}`!",
                         .{ @typeName(T), @typeName(A) },
                     ),
                 },
                 // TODO: handle each case individually for better errors!
-                else => misc.compileError(
+                else => utils.compileError(
                     "The `{s}.anyCompare` function can't compare complex types like `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
@@ -294,7 +294,7 @@ pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
                     const payload_a = @field(a, @tagName(tag_a));
                     const payload_b = @field(b, @tagName(tag_b));
                     return anyPartialCompare(payload_a, payload_b);
-                } else misc.compileError("In order to be compared unions must be tagged!", .{}),
+                } else utils.compileError("In order to be compared unions must be tagged!", .{}),
                 .Pointer => |Pointer| switch (Pointer.size) {
                     .One => anyPartialCompare(a.*, b.*),
                     .Slice => if (a.len != b.len) null else {
@@ -304,13 +304,13 @@ pub fn anyPartialCompareFn(comptime T: type) fn (T, T) ?Order {
                         } else ab_order;
                     },
                     // TODO: better error messages!
-                    else => misc.compileError(
+                    else => utils.compileError(
                         "The `{s}.anyPartialCompare` function can't compare complex types like `{s}`!",
                         .{ @typeName(T), @typeName(A) },
                     ),
                 },
                 // TODO: better error messages!
-                else => misc.compileError(
+                else => utils.compileError(
                     "The `{s}.anyPartialCompare` function can't compare complex types like `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),

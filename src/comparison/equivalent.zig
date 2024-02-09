@@ -1,5 +1,5 @@
 const std = @import("std");
-const misc = @import("../misc.zig");
+const utils = @import("../utils.zig");
 const contracts = @import("../contracts.zig");
 const collections = @import("../collections.zig");
 const Iterator = collections.iterating.Iterator;
@@ -164,7 +164,7 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
                 // TODO: specialized equals with precision for floats
-                .ComptimeFloat, .Float => misc.compileError(
+                .ComptimeFloat, .Float => utils.compileError(
                     "The `{s}.anyEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
@@ -172,14 +172,14 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 .Void => true,
                 // `null` and `undefined` should not be comparable to anything, they're not
                 // representing data, or zero-sized data, but the absence of data.
-                .Null, .Undefined => misc.compileError(
+                .Null, .Undefined => utils.compileError(
                     "The `{s}.anyEquals` function shouldn't compare `null` or `undefined`! " ++
                         "Consider using partial equality instead.",
                     .{@typeName(T)},
                 ),
                 // Comparing two items of different types doesn't make much sense, so partial
                 // equality is better suited in this case!
-                .ErrorUnion, .Optional, .Union => misc.compileError(
+                .ErrorUnion, .Optional, .Union => utils.compileError(
                     "Can't implement `{s}.anyEquals` function for a type `{s}` which is a sum " ++
                         "type! Consider using partial equality instead.",
                     .{ @typeName(T), @typeName(A) },
@@ -198,14 +198,14 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
                 // So we're effectively not comparing pointers, but the data they're pointing to.
                 .Pointer => |Pointer| switch (Pointer.size) {
                     .One => anyEquals(a.*, b.*),
-                    else => misc.compileError(
+                    else => utils.compileError(
                         "Can't implement `{s}.anyEquals` for type `{s}` which is a pointer to " ++
                             "a varying number of items! Consider using partial equality instead.",
                         .{ @typeName(T), @typeName(A) },
                     ),
                 },
                 // The following types, idk what to do, if there's anything to do.
-                .AnyFrame, .Fn, .Frame, .Opaque, .NoReturn => misc.compileError(
+                .AnyFrame, .Fn, .Frame, .Opaque, .NoReturn => utils.compileError(
                     "Can't implement `{s}.anyEquals` function for type `{s}` which is a `.{s}`!",
                     .{ @typeName(T), @typeName(A), @tagName(info) },
                 ),
@@ -258,8 +258,8 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
         pub const eq: fn (self: Self, other: Self) ?bool =
             contract.default(.eq, partialEqualsFn(Self));
 
-        const PartialUsize = misc.Result(usize, usize);
-        pub const PartialSelf = misc.Result(Self, Self);
+        const PartialUsize = utils.Result(usize, usize);
+        pub const PartialSelf = utils.Result(Self, Self);
 
         pub fn allEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?bool {
             const first = firstEqIndex(self, !is_eq, iterator) orelse return null;
@@ -403,7 +403,7 @@ pub fn partialEqualsFn(comptime T: type) fn (T, T) ?bool {
                 .Type,
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
-                .Float, .ComptimeFloat => misc.compileError(
+                .Float, .ComptimeFloat => utils.compileError(
                     "The `{s}.anyPartialEquals` function shouldn't compare floating point `{s}`!",
                     .{ @typeName(T), @typeName(A) },
                 ),
@@ -431,7 +431,7 @@ pub fn partialEqualsFn(comptime T: type) fn (T, T) ?bool {
                     const payload_a = @field(a, @tagName(tag_a));
                     const payload_b = @field(b, @tagName(tag_b));
                     return anyPartialEquals(payload_a, payload_b);
-                } else misc.compileError("In order to be compared unions must be tagged!", .{}),
+                } else utils.compileError("In order to be compared unions must be tagged!", .{}),
                 // Structs, vectors and array are product types. We are comparing their members one
                 // by one, as pairs, following these rule:
                 // 1. ∃(m1, m2) in (p1, p2) : (equals(m1, m2) == false)
@@ -483,14 +483,14 @@ pub fn partialEqualsFn(comptime T: type) fn (T, T) ?bool {
                     },
                     // If they were terminated, other pointers could emulate slices, but I'm not
                     // sure how I should test for equality with the sentinel.
-                    else => misc.compileError(
+                    else => utils.compileError(
                         "Can't implement `{s}.anyPartialEquals` function for type `{s}` which" ++
                             " is a {s}-pointer to `{s}`!",
                         .{ @typeName(T), @tagName(Pointer.size), @typeName(Pointer.child) },
                     ),
                 },
                 // The following types, idk what to do, if there's anything to do.
-                .AnyFrame, .Frame, .Fn, .Opaque, .NoReturn => misc.compileError(
+                .AnyFrame, .Frame, .Fn, .Opaque, .NoReturn => utils.compileError(
                     "Can't implement `{s}.anyPartialEquals` function for type `{s}` which is a `.{s}`!",
                     .{ @typeName(T), @typeName(A), @tagName(info) },
                 ),

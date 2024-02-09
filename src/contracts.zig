@@ -3,8 +3,8 @@
 //! of the namespace.
 
 const std = @import("std");
-const misc = @import("misc.zig");
-const EnumLiteral = misc.EnumLiteral;
+const utils = @import("utils.zig");
+const EnumLiteral = utils.EnumLiteral;
 
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
 /// them, and gives them back in order to return the namespace. It's considered responsible for
@@ -76,7 +76,7 @@ pub fn Contract(
         /// ```
         pub fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
             const name: []const u8 = @tagName(clause);
-            if (!hasClause(clause)) misc.compileError(
+            if (!hasClause(clause)) utils.compileError(
                 "Interface of {s} requires a `.{s}` clause of type `{s}`!",
                 .{ @typeName(Contractor), name, @typeName(Clause) },
             );
@@ -87,7 +87,7 @@ pub fn Contract(
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
             const Clause = @TypeOf(clause);
-            if (Clause != Type) misc.compileError(
+            if (Clause != Type) utils.compileError(
                 "Interface of `{s}` requires `{s}` to be of type `{s}`, not `{s}`!",
                 .{ @typeName(Contractor), name, @typeName(Type), @typeName(Clause) },
             );

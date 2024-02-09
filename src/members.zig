@@ -1,5 +1,5 @@
 const std = @import("std");
-const misc = @import("misc.zig");
+const utils = @import("utils.zig");
 const contracts = @import("contracts.zig");
 
 pub fn FieldManaged(comptime Contractor: type, comptime clauses: anytype) type {
@@ -7,12 +7,12 @@ pub fn FieldManaged(comptime Contractor: type, comptime clauses: anytype) type {
 
     const Self: type = contract.default(.Self, Contractor);
     const info = @typeInfo(Self);
-    if (info != .Struct) misc.compileError(
+    if (info != .Struct) utils.compileError(
         "The `{s}.FieldManaged` interface must be applied to a struct, not a `.{s}` like `{s}`!",
         .{ @typeName(Contractor), @tagName(info), @typeName(Self) },
     );
 
-    if (info.Struct.is_tuple) misc.compileError(
+    if (info.Struct.is_tuple) utils.compileError(
         "The `{s}.FieldManaged` interface can't be applied to a tuple like `{s}`!",
         .{ @typeName(Contractor), @typeName(Self) },
     );
@@ -57,12 +57,12 @@ pub fn VariantManaged(comptime Contractor: type, comptime clauses: anytype) type
 
     const Self: type = contract.default(.Self, Contractor);
     const info = @typeInfo(Self);
-    if (info != .Union and info != .Enum) misc.compileError(
+    if (info != .Union and info != .Enum) utils.compileError(
         "The `{s}.VariantManaged` interface must be applied to a union or an enum, not a `.{s}` like `{s}`!",
         .{ @typeName(Contractor), @tagName(info), @typeName(Self) },
     );
 
-    if (info == .Union and info.Union.tag_type == null) misc.compileError(
+    if (info == .Union and info.Union.tag_type == null) utils.compileError(
         "The `{s}.VariantManaged` interface can't be applied to an untagged union like `{s}`!",
         .{ @typeName(Contractor), @typeName(Self) },
     );
