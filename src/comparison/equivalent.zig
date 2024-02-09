@@ -335,9 +335,7 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
             }
 
             fn maybeEq(a: ?bool, b: ?bool) bool {
-                return if (a) |yes_a| {
-                    if (b) |yes_b| yes_a == yes_b else return false;
-                } else return false;
+                return partialEqualsFn(?bool)(a, b) orelse false;
             }
 
             test "PartialEquivalent: Almost Reflexivity" {

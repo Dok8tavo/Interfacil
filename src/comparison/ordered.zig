@@ -4,6 +4,8 @@ const contracts = @import("../contracts.zig");
 const equivalent = @import("equivalent.zig");
 const Equivalent = equivalent.Equivalent;
 const PartialEquivalent = equivalent.PartialEquivalent;
+const collections = @import("../collections.zig");
+const Iterator = collections.iterating.Iterator;
 
 pub const Order = enum(i3) {
     backwards = -1,
@@ -13,7 +15,7 @@ pub const Order = enum(i3) {
     pub usingnamespace Equivalent(Order, .{});
     /// The `OptEq` name stands for "Optional Equivalency", which is the namespace for partial
     /// equivalency of the `?Order` type.
-    pub const OptEq = PartialEquivalent(?Order, .{});
+    pub const optionEq = PartialEquivalent(?Order, .{}).eq;
 };
 
 /// # Ordered
@@ -36,82 +38,87 @@ pub const Order = enum(i3) {
 ///
 /// TODO
 pub fn Ordered(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-        const Self: type = contract.default(.Self, Contractor);
+        pub const cmp: fn (Self, Self) Order = contract.default(.cmp, anyCompareFn(Self));
+        pub usingnamespace Equivalent(Self, .{ .eq = struct {
+            pub fn call(self: Self, other: Self) bool {
+                return cmp(self, other).eq(.equals);
+            }
+        }.call });
 
-        pub const compare: fn (Self, Self) Order = contract.default(.compare, anyCompareFn(Self));
-        pub usingnamespace Equivalent(Self, .{ .eq = eqFn });
-
-        fn eqFn(self: Self, other: Self) bool {
-            return compare(self, other).eq(.equals);
+        pub fn lt(self: Self, other: Self) bool {
+            return cmp(self, other).eq(.forwards);
         }
 
-        pub const lt: fn (Self, Self) bool = contract.default(.lt, defaultLessThan);
-        pub const le: fn (Self, Self) bool = contract.default(.le, defaultLessEqual);
-        pub const gt: fn (Self, Self) bool = contract.default(.gt, defaultGreaterThan);
-        pub const ge: fn (Self, Self) bool = contract.default(.ge, defaultGreaterEqual);
-        pub const maxIndex: fn ([]const Self) ?Self = contract.default(.maxIndex, defaultMaxIndex);
-        pub const minIndex: fn ([]const Self) ?Self = contract.default(.minIndex, defaultMinIndex);
-        pub const max: fn ([]const Self) ?usize = contract.default(.max, defaultMax);
-        pub const min: fn ([]const Self) ?usize = contract.default(.min, defaultMin);
-        pub const clamp: fn (Self, Self, Self) Self = contract.default(.clamp, defaultClamp);
-        pub const clamped: fn (Self, Self, Self) bool = contract.default(.clamped, defaultClamped);
+        pub fn le(self: Self, other: Self) bool {
+            return !cmp(self, other).eq(.backwards);
+        }
 
-        fn defaultClamped(self: Self, floor: Self, roof: Self) bool {
+        pub fn gt(self: Self, other: Self) bool {
+            return cmp(self, other).eq(.backwards);
+        }
+
+        pub fn ge(self: Self, other: Self) bool {
+            return !cmp(self, other).eq(.forwards);
+        }
+
+        pub fn clamp(self: *Self, floor: Self, roof: Self) void {
+            std.debug.assert(le(floor, roof));
+            self.* = clamped(self, floor, roof);
+        }
+
+        pub fn isClamped(self: Self, floor: Self, roof: Self) bool {
             std.debug.assert(le(floor, roof));
             return le(floor, self) and le(self, roof);
         }
 
-        fn defaultClamp(self: Self, floor: Self, roof: Self) Self {
+        pub fn clamped(self: Self, floor: Self, roof: Self) Self {
             std.debug.assert(le(floor, roof));
-            return if (le(self, floor)) floor else if (ge(self, roof)) roof else self;
+            return if (le(self, floor)) floor else if (le(roof, self)) roof else self;
         }
 
-        fn defaultMax(slice: []const Self) ?Self {
-            const max_index = maxIndex(slice) orelse return null;
-            return slice[max_index];
+        pub fn isClampedStrict(self: Self, floor: Self, roof: Self) bool {
+            std.debug.assert(lt(floor, roof));
+            return lt(floor, self) and lt(self, roof);
         }
 
-        fn defaultMin(slice: []const Self) ?Self {
-            const min_index = minIndex(slice) orelse return null;
-            return slice[min_index];
+        pub fn max(iterator: Iterator(Self)) ?Self {
+            return extremum(ge, iterator);
         }
 
-        fn defaultMaxIndex(slice: []const Self) ?usize {
-            if (slice.len == 0) return null;
-            var imax: usize = 0;
-            for (slice[1..], 1..) |item, i| {
-                if (gt(item, slice[imax])) imax = i;
-            }
-
-            return imax;
+        pub fn min(iterator: Iterator(Self)) ?Self {
+            return extremum(le, iterator);
         }
 
-        fn defaultMinIndex(slice: []const Self) ?usize {
-            if (slice.len == 0) return null;
-            var imin: usize = 0;
-            for (slice[1..], 1..) |item, i| {
-                if (lt(item, slice[imin])) imin = i;
-            }
-
-            return imin;
+        pub fn extremum(
+            comptime comparator: fn (Self, Self) bool,
+            iterator: Iterator(Self),
+        ) ?Self {
+            var extreme_item = iterator.next() orelse return null;
+            return while (iterator.next()) |item| {
+                if (comparator(extreme_item, item)) extreme_item = item;
+            } else extreme_item;
         }
 
-        fn defaultLessThan(self: Self, other: Self) bool {
-            return compare(self, other).eq(.forwards);
+        pub fn maxIndex(iterator: Iterator(Self)) ?usize {
+            return extremumIndex(ge, iterator);
         }
 
-        fn defaultLessEqual(self: Self, other: Self) bool {
-            return compare(self, other).no(.backwards);
+        pub fn minIndex(iterator: Iterator(Self)) ?usize {
+            return extremumIndex(le, iterator);
         }
 
-        fn defaultGreaterThan(self: Self, other: Self) bool {
-            return compare(self, other).eq(.backwards);
-        }
-
-        fn defaultGreaterEqual(self: Self, other: Self) bool {
-            return compare(self, other).no(.forwards);
+        pub fn extremumIndex(
+            comptime comparator: fn (Self, Self) bool,
+            iterator: Iterator(Self),
+        ) ?usize {
+            var extreme_item = iterator.next() orelse return null;
+            var index: usize = 0;
+            return while (iterator.next()) |item| : (index += 1) {
+                if (comparator(extreme_item, item)) extreme_item = item;
+            } else index;
         }
     };
 }
@@ -180,36 +187,51 @@ pub fn anyCompareFn(comptime T: type) fn (T, T) Order {
 ///
 /// TODO
 pub fn PartialOrdered(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self = contract.default(.Self, Contractor);
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-        const Self = contract.default(.Self, Contractor);
+        pub const cmp: fn (Self, Self) ?Order = contract.default(.compare, anyCompareFn(Self));
+        pub usingnamespace PartialEquivalent(Contractor, .{ .eq = struct {
+            pub fn call(self: Self, other: Self) ?bool {
+                return Order.optionEq(cmp(self, other), Order.equals);
+            }
+        }.call });
 
-        pub const compare: fn (Self, Self) ?Order = contract.default(.compare, anyCompareFn(Self));
-        pub usingnamespace PartialEquivalent(Contractor, .{ .eq = eqFn });
-
-        fn eqFn(self: Self, other: Self) ?bool {
-            return Order.OptEq.eq(compare(self, other), Order.equals);
+        pub fn lt(self: Self, other: Self) ?bool {
+            return Order.optionEq(cmp(self, other), Order.forwards);
         }
 
-        pub const lt: fn (Self, Self) ?bool = contract.default(.lt, defaultLessThan);
-        pub const le: fn (Self, Self) ?bool = contract.default(.le, defaultLessEqual);
-        pub const gt: fn (Self, Self) ?bool = contract.default(.gt, defaultGreaterThan);
-        pub const ge: fn (Self, Self) ?bool = contract.default(.ge, defaultGreaterEqual);
-
-        fn defaultLessThan(self: Self, other: Self) ?bool {
-            return Order.OptEq.eq(compare(self, other), Order.forwards);
+        pub fn le(self: Self, other: Self) ?bool {
+            return !Order.optionEq(cmp(self, other), Order.backwards);
         }
 
-        fn defaultLessEqual(self: Self, other: Self) ?bool {
-            return Order.OptEq.no(compare(self, other), Order.backwards);
+        pub fn gt(self: Self, other: Self) ?bool {
+            return Order.optionEq(cmp(self, other), Order.backwards);
         }
 
-        fn defaultGreaterThan(self: Self, other: Self) ?bool {
-            return Order.OptEq.eq(compare(self, other), Order.backwards);
+        pub fn ge(self: Self, other: Self) ?bool {
+            return !Order.optionEq(cmp(self, other), Order.forwards);
         }
 
-        fn defaultGreaterEqual(self: Self, other: Self) ?bool {
-            return Order.OptEq.no(compare(self, other), Order.forwards);
+        pub fn isClamped(self: Self, floor: Self, roof: Self) ?bool {
+            std.debug.assert(le(floor, roof).?);
+            const floor_self = le(floor, self) orelse return null;
+            const self_roof = le(self, roof) orelse return null;
+            return floor_self and self_roof;
+        }
+
+        pub fn clamped(self: Self, floor: Self, roof: Self) ?Self {
+            std.debug.assert(le(floor, roof).?);
+            const floor_self = le(self, floor) orelse return null;
+            const self_roof = le(self, roof) orelse return null;
+            return if (!floor_self) floor else if (!self_roof) roof else self;
+        }
+
+        pub fn isClampedStrict(self: Self, floor: Self, roof: Self) ?bool {
+            std.debug.assert(lt(floor, roof).?);
+            const floor_self = lt(floor, self) orelse return null;
+            const self_roof = lt(self, roof) orelse return null;
+            return floor_self and self_roof;
         }
     };
 }
