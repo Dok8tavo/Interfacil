@@ -40,19 +40,18 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
         /// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
         pub const eq: fn (self: Self, other: Self) bool = contract.default(.eq, equalsFn(Self));
 
-        pub fn all(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
+        pub fn allEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
             return firstEq(self, !is_eq, iterator) == null;
         }
 
-        pub fn any(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
+        pub fn anyEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
             return firstEq(self, is_eq, iterator) != null;
         }
 
         pub fn firstEqIndex(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?usize {
             var index: usize = 0;
-            return while (iterator.next()) |item| {
+            return while (iterator.next()) |item| : (index += 1) {
                 if (eq(self, item) == is_eq) break index;
-                index += 1;
             } else null;
         }
 
@@ -62,18 +61,18 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             } else null;
         }
 
-        pub fn filter(
+        pub fn filterEq(
             self: Self,
             comptime is_eq: bool,
             iterator: Iterator(Self),
-        ) FilterIterator(is_eq) {
-            return FilterIterator(is_eq){
+        ) FilterEqIterator(is_eq) {
+            return FilterEqIterator(is_eq){
                 .filter = self,
                 .iterator = iterator,
             };
         }
 
-        fn FilterIterator(comptime is_eq: bool) type {
+        fn FilterEqIterator(comptime is_eq: bool) type {
             return struct {
                 const Filtered = @This();
 
@@ -247,9 +246,10 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
 ///
 /// TODO
 pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) type {
+    const contract = contracts.Contract(Contractor, clauses);
+    const Self: type = contract.default(.Self, Contractor);
+    const sample = contract.default(.sample, @as([]const Self, &[_]Self{}));
     return struct {
-        const contract = contracts.Contract(Contractor, clauses);
-
         /// This function is the partial equivalency function from the `PartialEquivalent`
         /// interface. It's assumed to be:
         /// - almost reflexive: `∀x : eq(x, x) === true`
@@ -258,19 +258,48 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
         pub const eq: fn (self: Self, other: Self) ?bool =
             contract.default(.eq, partialEqualsFn(Self));
 
-        /// This function is the non-partial-equivalency function from the `PartialEquivalent`
-        /// interface. It's assumed to be:
-        /// - almost antireflexive: `∀x : no(x, x) === false`
-        /// - almost symmetric: `∀x, y : no(x, y) === no(y, x)`
-        /// - almost the opposite of `eq`: `∀x, y : eq(x, y) !== no(x, y)`
-        pub fn no(self: Self, other: Self) ?bool {
-            return if (eq(self, other)) |r| !r else null;
+        const PartialUsize = misc.Result(usize, usize);
+        pub const PartialSelf = misc.Result(Self, Self);
+
+        pub fn allEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?bool {
+            const first = firstEqIndex(self, !is_eq, iterator) orelse return null;
+            return first == .fail;
         }
 
-        const Self: type = contract.default(.Self, Contractor);
-        const default_sample: []const Self = &[_]Self{};
-        const sample = contract.default(.sample, default_sample);
-        const BoundsError = error{OutOfBounds};
+        pub fn anyEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?bool {
+            const first = firstEqIndex(self, is_eq, iterator) orelse return null;
+            return first == .pass;
+        }
+
+        pub fn firstEqIndex(
+            self: Self,
+            comptime is_eq: bool,
+            iterator: Iterator(Self),
+        ) ?PartialUsize {
+            var index: usize = 0;
+            return while (iterator.next()) |item| : (index += 1) {
+                const e = eq(self, item) orelse break PartialUsize{ .fail = index };
+                if (e == is_eq) break PartialUsize{ .pass = index };
+            } else null;
+        }
+
+        pub fn firstEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?PartialSelf {
+            return while (iterator.next()) |item| {
+                const e = eq(self, item) orelse break PartialUsize{ .fail = item };
+                if (e == is_eq) break PartialUsize{ .pass = item };
+            } else null;
+        }
+
+        pub fn filterEq(
+            self: Self,
+            comptime is_eq: bool,
+            iterator: Iterator(Self),
+        ) FilterPartialEqIterator(is_eq) {
+            return FilterPartialEqIterator(is_eq){
+                .filter = self,
+                .iterator = iterator,
+            };
+        }
 
         /// This namespace contains functions and tests for the validity of the `PartialEquivalent`
         /// interface. The tests are using the `sample` clause on the testing functions.
@@ -323,6 +352,37 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 try testingAlmostTransitivity(sample);
             }
         };
+
+        fn FilterPartialEqIterator(comptime is_eq: bool) type {
+            return struct {
+                const Filtered = @This();
+
+                filter: Self,
+                iterator: Iterator(Self),
+
+                fn currFn(self: Filtered) ?PartialSelf {
+                    return while (self.iterator.curr()) |item| {
+                        if (eq(self, item)) |e| {
+                            if (e == is_eq)
+                                break item
+                            else
+                                self.iterator.skip();
+                        } else break PartialSelf{ .fail = item };
+                    } else null;
+                }
+
+                fn skipFn(self: Filtered) void {
+                    self.iterator.skip();
+                }
+
+                pub usingnamespace collections.iterating.Iterable(Filtered, .{
+                    .mut_by_value = true,
+                    .curr = currFn,
+                    .skip = skipFn,
+                    .Item = Self,
+                });
+            };
+        }
     };
 }
 
