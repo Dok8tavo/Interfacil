@@ -22,8 +22,8 @@ const contracts = @import("contracts.zig");
 /// TODO
 pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.getSelf();
-    const VarSelf: type = contract.getVarSelf();
+    const Self: type = contract.Self;
+    const VarSelf: type = contract.VarSelf;
     const Error: type = std.mem.Allocator.Error;
     return struct {
         const allocFn = contract.require(.alloc, fn (

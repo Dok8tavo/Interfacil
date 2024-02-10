@@ -5,7 +5,7 @@ const contracts = @import("contracts.zig");
 pub fn FieldManaged(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
 
-    const Self: type = contract.getSelf();
+    const Self: type = contract.Self();
     const info = @typeInfo(Self);
     if (info != .Struct) utils.compileError(
         "The `{s}.FieldManaged` interface must be applied to a struct, not a `.{s}` like `{s}`!",
@@ -54,9 +54,9 @@ pub fn FieldManaged(comptime Contractor: type, comptime clauses: anytype) type {
 
 pub fn VariantManaged(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-
-    const Self: type = contract.default(.Self, Contractor);
+    const Self: type = contract.Self;
     const info = @typeInfo(Self);
+
     if (info != .Union and info != .Enum) utils.compileError(
         "The `{s}.VariantManaged` interface must be applied to a union or an enum, not a `.{s}` like `{s}`!",
         .{ @typeName(Contractor), @tagName(info), @typeName(Self) },

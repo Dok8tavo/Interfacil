@@ -85,16 +85,14 @@ pub fn Contract(
             return typeChecked(name, Clause);
         }
 
-        /// This function returns the `.Self` clause, by default `Contractor`.
-        pub fn getSelf() type {
-            return default(.Self, Contractor);
-        }
+        /// This is the `.Self` clause, by default `Contractor`.
+        pub const Self: type = default(.Self, Contractor);
 
-        /// This function returns `*Self` if the `.mutation` clause is `by_ref` (which it is by
-        /// default), `Self` else.
-        pub fn getVarSelf() type {
-            return if (mutation) Self else *Self;
-        }
+        /// This is the mutable version of `Self`.
+        pub const VarSelf: type = switch (mutation) {
+            .by_val => Self,
+            .by_ref => *Self,
+        };
 
         pub fn asSelf(self: VarSelf) Self {
             return switch (mutation) {
@@ -110,14 +108,11 @@ pub fn Contract(
             };
         }
 
-        /// This function returns the `.sample` clause, by default an empty const slice of `Self`.
-        pub fn getSample() []const getSelf() {
-            return default(.sample, @as([]const getSelf(), &.{}));
-        }
+        /// This is the `.sample` clause, by default an empty const slice of `Self`.
+        pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
 
-        pub fn getMutation() Mutation {
-            return default(.mutation, Mutation.by_ref);
-        }
+        /// TODO
+        pub const mutation: Mutation = default(.mutation, Mutation.by_ref);
 
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
@@ -129,9 +124,5 @@ pub fn Contract(
 
             return clause;
         }
-
-        const mutation = getMutation();
-        const Self = getSelf();
-        const VarSelf = getVarSelf();
     };
 }

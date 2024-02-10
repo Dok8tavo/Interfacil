@@ -3,8 +3,8 @@ const iterating = @import("iterating.zig");
 
 pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.getSelf();
-    const VarSelf: type = contract.getVarSelf();
+    const Self: type = contract.Self;
+    const VarSelf: type = contract.VarSelf;
     const Item = contract.require(.Item, type);
     const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) error{OutOfBounds}!void);
 

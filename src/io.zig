@@ -26,8 +26,8 @@ const ArrayList = std.ArrayList;
 /// TODO
 pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.getSelf();
-    const VarSelf: type = contract.getVarSelf();
+    const Self: type = contract.Self;
+    const VarSelf: type = contract.VarSelf;
     return struct {
         pub const AllocReadError = ReadError || Allocator.Error || error{StreamTooLong};
         pub const StreamError = ReadError || error{EndOfStream};
@@ -361,8 +361,8 @@ pub const Reader = struct {
 /// TODO
 pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.getSelf();
-    const VarSelf: type = contract.getVarSelf();
+    const Self: type = contract.Self;
+    const VarSelf: type = contract.VarSelf;
     return struct {
         pub const write = contract.require(.write, fn (VarSelf, []const u8) WriteError!usize);
         pub const WriteError: type = contract.default(.WriteError, anyerror);
