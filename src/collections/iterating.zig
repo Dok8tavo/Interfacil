@@ -24,7 +24,6 @@ const contracts = @import("../contracts.zig");
 pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
     const Self: type = contract.getSelf();
-    const mut_by_value = contract.default(.mut_by_value, false);
     const VarSelf: type = contract.getVarSelf();
     const Item = contract.require(.Item, type);
 
@@ -33,7 +32,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
         pub const skip = contract.require(.skip, fn (VarSelf) void);
 
         pub fn next(self: VarSelf) ?Item {
-            if (curr(asValue(self))) |item| {
+            if (curr(contract.asSelf(self))) |item| {
                 defer skip(self);
                 return item;
             } else return null;
@@ -77,7 +76,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
                     .skip = &struct {
                         pub fn call(context: *anyopaque) void {
                             const ctx: *Self = @alignCast(@ptrCast(context));
-                            skip(if (mut_by_value) ctx.* else ctx);
+                            skip(contract.asVarSelf(ctx));
                         }
                     }.call,
                     .curr = &struct {
@@ -88,10 +87,6 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
                     }.call,
                 },
             };
-        }
-
-        fn asValue(self: VarSelf) Self {
-            return if (mut_by_value) self else self.*;
         }
     };
 }
@@ -116,7 +111,7 @@ pub fn Iterator(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Self, .{
-            .mut_by_value = true,
+            .mutation = contracts.Mutation.by_val,
             .Item = Item,
             .curr = currFn,
             .skip = skipFn,
@@ -147,14 +142,13 @@ pub fn Iterator(comptime Item: type) type {
 pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
     const Self: type = contract.default(.Self, Contractor);
-    const mut_by_value = contract.default(.mut_by_value, false);
-    const VarSelf = if (mut_by_value) Self else *Self;
+    const VarSelf: type = contract.getVarSelf();
     const Item = contract.require(.Item, type);
     const skipBack = contract.require(.skipBack, fn (VarSelf) void);
     const forwards_iterable = Iterable(Contractor, clauses);
     const backwards_iterable = Iterable(Contractor, .{
         .Self = Self,
-        .mut_by_value = mut_by_value,
+        .mutation = contract.getMutation(),
         .Item = Item,
         .skip = skipBack,
         .curr = forwards_iterable.curr,
@@ -183,7 +177,7 @@ pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype)
 
         pub const Backwards = BidirectionIterable(Contractor, .{
             .Self = Self,
-            .mut_by_value = mut_by_value,
+            .mutation = contract.getMutation(),
             .Item = Item,
             .skip = backwards_iterable.skip,
             .skipBack = forwards_iterable.skip,
@@ -217,7 +211,7 @@ pub fn BidirectionIterator(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Iterator, .{
-            .mut_by_value = true,
+            .mutation = contracts.Mutation.by_val,
             .Item = Item,
             .curr = currFn,
             .skip = skipFn,

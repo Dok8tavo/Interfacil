@@ -6,7 +6,6 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
     const Self: type = contract.getSelf();
     const VarSelf: type = contract.getVarSelf();
-    const mut_by_value = contract.default(.mut_by_value, false);
     const Item = contract.require(.Item, type);
     const sliceFn = contract.require(.sliceFn, fn (
         self: Self,
@@ -24,7 +23,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn asVarSlice(self: VarSelf) []Item {
-            return @constCast(getAllSlice(asValue(self)));
+            return @constCast(getAllSlice(contract.asSelf(self)));
         }
 
         pub fn getLength(self: Self) usize {
@@ -38,7 +37,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn getVarSliced(self: VarSelf, start: ?usize, length: ?usize) []Item {
-            return @constCast(getSliced(asValue(self), start, length));
+            return @constCast(getSliced(contract.asSelf(self), start, length));
         }
 
         pub fn getRanged(self: Self, start: ?usize, end: ?usize) []const Item {
@@ -49,7 +48,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
 
         pub fn getVarRanged(self: VarSelf, start: ?usize, end: ?usize) []Item {
             const s = start orelse 0;
-            const e = end orelse getLength(asValue(self));
+            const e = end orelse getLength(contract.asSelf(self));
             return getVarSliced(self, start, e - s);
         }
 
@@ -61,7 +60,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
 
         pub fn getVarRangedTrunc(self: VarSelf, start: ?usize, end: ?usize) []Item {
             const s = start orelse 0;
-            const e = end orelse getLength(asValue(self));
+            const e = end orelse getLength(contract.asSelf(self));
             return getVarSliced(self, s, e -| s);
         }
 
@@ -73,7 +72,7 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
 
         pub usingnamespace indexing.Indexable(Contractor, .{
             .Self = Self,
-            .mut_by_value = mut_by_value,
+            .mutation = contract.getMutation(),
             .Item = Item,
             .get = getItemWrapper,
             .set = setItemWrapper,
@@ -97,10 +96,6 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             const s = getVarSliced(self, index, 1);
             s[0] = value;
         }
-
-        fn asValue(self: VarSelf) Self {
-            return if (mut_by_value) self else self.*;
-        }
     };
 }
 
@@ -118,7 +113,7 @@ pub fn Slicer(comptime Item: type) type {
         }
 
         pub usingnamespace Sliceable(Self, .{
-            .mut_by_value = true,
+            .mutation = contracts.Mutation.by_val,
             .Item = Item,
             .sliceFn = sliceWrapper,
         });

@@ -334,7 +334,10 @@ pub const Reader = struct {
         return self.vtable(self.ctx, buffer);
     }
 
-    pub usingnamespace Readable(Reader, .{ .read = readWrapper, .mut_by_value = true });
+    pub usingnamespace Readable(Reader, .{
+        .read = readWrapper,
+        .mutation = contracts.Mutation.by_val,
+    });
 };
 
 /// # Writeable
@@ -437,7 +440,7 @@ pub const Writer = struct {
     }
 
     pub usingnamespace Writeable(Writer, .{
-        .mut_by_value = true,
+        .mutation = contracts.Mutation.by_val,
         .write = writeWrapper,
     });
 };

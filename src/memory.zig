@@ -483,6 +483,6 @@ const Allocator = struct {
         .alloc = allocWrapper,
         .resize = resizeWrapper,
         .free = freeWrapper,
-        .mut_by_value = true,
+        .mutation = contracts.Mutation.by_val,
     });
 };

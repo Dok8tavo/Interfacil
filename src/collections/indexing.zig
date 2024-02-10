@@ -4,8 +4,7 @@ const iterating = @import("iterating.zig");
 pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
     const Self: type = contract.getSelf();
-    const mut_by_value: bool = contract.default(.mut_by_value, false);
-    const VarSelf = contract.getVarSelf();
+    const VarSelf: type = contract.getVarSelf();
     const Item = contract.require(.Item, type);
     const set = contract.require(.set, fn (self: VarSelf, index: usize, item: Item) error{OutOfBounds}!void);
 
@@ -13,7 +12,7 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
 
         pub fn setItem(self: VarSelf, index: usize, item: Item) error{OutOfBounds}!?Item {
-            const old = getItem(asValue(self), index);
+            const old = getItem(contract.asValue(self), index);
             try set(self, index, item);
             return old;
         }
@@ -70,10 +69,6 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
                 },
             };
         }
-
-        fn asValue(self: VarSelf) Self {
-            return if (mut_by_value) self else self.*;
-        }
     };
 }
 
@@ -96,7 +91,7 @@ pub fn Indexer(comptime Item: type) type {
         }
 
         pub usingnamespace Indexable(Self, .{
-            .mut_by_value = true,
+            .mutation = contracts.Mutation.by_val,
             .Item = Item,
             .get = getWrapper,
             .set = setWrapper,

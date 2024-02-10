@@ -93,7 +93,7 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 }
 
                 pub usingnamespace collections.iterating.Iterable(Filtered, .{
-                    .mut_by_value = true,
+                    .mutation = contracts.Mutation.by_val,
                     .curr = currFn,
                     .skip = skipFn,
                     .Item = Self,
@@ -368,7 +368,7 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 }
 
                 pub usingnamespace collections.iterating.Iterable(Filtered, .{
-                    .mut_by_value = true,
+                    .mutation = contracts.Mutation.by_val,
                     .curr = currFn,
                     .skip = skipFn,
                     .Item = Self,

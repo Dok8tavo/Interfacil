@@ -6,6 +6,8 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const EnumLiteral = utils.EnumLiteral;
 
+pub const Mutation = enum { by_val, by_ref };
+
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
 /// them, and gives them back in order to return the namespace. It's considered responsible for
 /// providing thenecessary `clauses` and is often the type that receives the namespace, allowing
@@ -88,23 +90,33 @@ pub fn Contract(
             return default(.Self, Contractor);
         }
 
-        /// This function returns `*Self` if the `.mut_by_value` clause is `false` (which it is by
+        /// This function returns `*Self` if the `.mutation` clause is `by_ref` (which it is by
         /// default), `Self` else.
         pub fn getVarSelf() type {
-            return if (mut_by_value) Self else *Self;
+            return if (mutation) Self else *Self;
         }
 
-        pub fn asValue(self: VarSelf) Self {
-            if (mut_by_value) self else self.*;
+        pub fn asSelf(self: VarSelf) Self {
+            return switch (mutation) {
+                .by_ref => self.*,
+                .by_val => self,
+            };
         }
 
-        pub fn asRef(self: *VarSelf) *Self {
-            return if (mut_by_value) self else self.*;
+        pub fn asVarSelf(self: *Self) VarSelf {
+            return switch (mutation) {
+                .by_ref => self,
+                .by_val => self.*,
+            };
         }
 
         /// This function returns the `.sample` clause, by default an empty const slice of `Self`.
         pub fn getSample() []const getSelf() {
             return default(.sample, @as([]const getSelf(), &.{}));
+        }
+
+        pub fn getMutation() Mutation {
+            return default(.mutation, Mutation.by_ref);
         }
 
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
@@ -118,7 +130,7 @@ pub fn Contract(
             return clause;
         }
 
-        const mut_by_value = default(.mut_by_value, false);
+        const mutation = getMutation();
         const Self = getSelf();
         const VarSelf = getVarSelf();
     };
