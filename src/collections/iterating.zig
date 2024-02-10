@@ -55,6 +55,13 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
+        pub fn reduce(self: *Self, operation: *const fn (Item, Item) Item) Reduce(Item) {
+            return Reduce(Item){
+                .iterator = asIterator(self),
+                .operation = operation,
+            };
+        }
+
         pub fn map(
             self: *Self,
             comptime To: type,
@@ -169,5 +176,42 @@ pub fn Map(comptime From: type, comptime To: type) type {
             .skip = skipFn,
             .curr = currFn,
         });
+    };
+}
+
+pub fn Reduce(comptime Item: type) type {
+    return struct {
+        const Self = @This();
+
+        iterator: Iterator(Item),
+        current: ?Item,
+        operation: *const fn (Item, Item) Item,
+
+        fn currFn(self: Self) ?Item {
+            return self.current;
+        }
+
+        fn skipFn(self: Self) void {
+            const current_item = self.current orelse return;
+            const next_item = self.iterator.next() orelse {
+                self.current = null;
+                return;
+            };
+
+            self.current = self.operation(current_item, next_item);
+        }
+
+        pub usingnamespace Iterable(Self, .{
+            .mutation = contracts.Mutation.by_val,
+            .Item = Item,
+            .skip = skipFn,
+            .curr = currFn,
+        });
+
+        pub fn eval(self: Self) ?Item {
+            var result = self.curr() orelse return null;
+            while (self.next()) |item| result = item;
+            return result;
+        }
     };
 }
