@@ -43,25 +43,25 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn asIndexer(self: *Self) Indexer(Item) {
+            const Fn = struct {
+                pub fn getFn(context: *anyopaque, index: usize) ?Item {
+                    const ctx: *Self = @alignCast(@ptrCast(context));
+                    return getItem(ctx.*, index);
+                }
+                pub fn setFn(
+                    context: *anyopaque,
+                    index: usize,
+                    value: Item,
+                ) error{OutOfBounds}!void {
+                    const ctx: *Self = @alignCast(@ptrCast(context));
+                    return set(ctx, index, value);
+                }
+            };
             return Indexer(Item){
                 .context = self,
                 .vtable = .{
-                    .get = &struct {
-                        pub fn call(context: *anyopaque, index: usize) ?Item {
-                            const ctx: *Self = @alignCast(@ptrCast(context));
-                            return getItem(ctx.*, index);
-                        }
-                    }.call,
-                    .set = &struct {
-                        pub fn call(
-                            context: *anyopaque,
-                            index: usize,
-                            value: Item,
-                        ) error{OutOfBounds}!void {
-                            const ctx: *Self = @alignCast(@ptrCast(context));
-                            return set(ctx, index, value);
-                        }
-                    }.call,
+                    .get = &Fn.getFn,
+                    .set = &Fn.setFn,
                 },
             };
         }

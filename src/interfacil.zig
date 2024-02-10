@@ -20,26 +20,24 @@ const Version = struct {
     min: u16 = 1,
     patch: u32 = 0,
 
-    pub usingnamespace comparison.Ordered(Version, .{
-        .cmp = struct {
-            pub fn call(self: Version, other: Version) comparison.Order {
-                return if (self.maj < other.maj)
-                    .forwards
-                else if (other.maj < self.maj)
-                    .backwards
-                else if (self.min < other.min)
-                    .forwards
-                else if (other.min < self.min)
-                    .backwards
-                else if (self.patch < other.patch)
-                    .forwards
-                else if (other.patch < self.patch)
-                    .backwards
-                else
-                    .equals;
-            }
-        }.call,
-    });
+    fn cmpFn(self: Version, other: Version) comparison.Order {
+        return if (self.maj < other.maj)
+            .forwards
+        else if (other.maj < self.maj)
+            .backwards
+        else if (self.min < other.min)
+            .forwards
+        else if (other.min < self.min)
+            .backwards
+        else if (self.patch < other.patch)
+            .forwards
+        else if (other.patch < self.patch)
+            .backwards
+        else
+            .equals;
+    }
+
+    pub usingnamespace comparison.Ordered(Version, .{ .cmp = cmpFn });
 
     fn from(maj: u16, min: u16, patch: u32) Version {
         return .{
@@ -121,19 +119,19 @@ test "Versioning: basic comparisons" {
 pub const Container = struct {
     items: []i32,
 
+    fn getFn(self: Container, index: usize) ?i32 {
+        return if (self.items.len <= index) null else self.items[index];
+    }
+
+    fn setFn(self: *Container, index: usize, value: i32) error{OutOfBounds}!void {
+        if (self.items.len <= index) return error.OutOfBounds;
+        self.items[index] = value;
+    }
+
     pub usingnamespace collections.indexing.Indexable(Container, .{
         .Item = i32,
-        .get = struct {
-            pub fn call(self: Container, index: usize) ?i32 {
-                return if (self.items.len <= index) null else self.items[index];
-            }
-        }.call,
-        .set = struct {
-            pub fn call(self: *Container, index: usize, value: i32) error{OutOfBounds}!void {
-                if (self.items.len <= index) return error.OutOfBounds;
-                self.items[index] = value;
-            }
-        }.call,
+        .get = getFn,
+        .set = setFn,
     });
 };
 
@@ -194,21 +192,22 @@ test "Container: iterator" {
 
 test "Non-zeros: iterating, filtering and mapping" {
     var start: u8 = 1;
+    const NonZero = struct {
+        pub fn curr(ctx: *anyopaque) ?u8 {
+            const context: *u8 = @alignCast(@ptrCast(ctx));
+            return if (context.* == 0) null else context.*;
+        }
+        pub fn skip(ctx: *anyopaque) void {
+            const context: *u8 = @alignCast(@ptrCast(ctx));
+            if (context.* != 0) context.* +%= 1;
+        }
+    };
+    
     var non_zeros = collections.iterating.Iterator(u8){
         .ctx = &start,
         .vtable = .{
-            .curr = &struct {
-                pub fn call(ctx: *anyopaque) ?u8 {
-                    const context: *u8 = @alignCast(@ptrCast(ctx));
-                    return if (context.* == 0) null else context.*;
-                }
-            }.call,
-            .skip = &struct {
-                pub fn call(ctx: *anyopaque) void {
-                    const context: *u8 = @alignCast(@ptrCast(ctx));
-                    if (context.* != 0) context.* +%= 1;
-                }
-            }.call,
+            .curr = &NonZero.curr,
+            .skip = &NonZero.skip,
         },
     };
 

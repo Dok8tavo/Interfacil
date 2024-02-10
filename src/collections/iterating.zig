@@ -67,21 +67,21 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         pub fn asIterator(self: *Self) Iterator(Item) {
+            const Fn = struct {
+                pub fn skipFn(context: *anyopaque) void {
+                    const ctx: *Self = utils.cast(Self, context);
+                    skip(contract.asVarSelf(ctx));
+                }
+                pub fn currFn(context: *anyopaque) ?Item {
+                    const ctx: *Self = utils.cast(Self, context);
+                    return curr(ctx.*);
+                }
+            };
             return Iterator(Item){
                 .ctx = self,
                 .vtable = .{
-                    .skip = &struct {
-                        pub fn call(context: *anyopaque) void {
-                            const ctx: *Self = utils.cast(Self, context);
-                            skip(contract.asVarSelf(ctx));
-                        }
-                    }.call,
-                    .curr = &struct {
-                        pub fn call(context: *anyopaque) ?Item {
-                            const ctx: *Self = utils.cast(Self, context);
-                            return curr(ctx.*);
-                        }
-                    }.call,
+                    .skip = &Fn.skipFn,
+                    .curr = &Fn.currFn,
                 },
             };
         }
