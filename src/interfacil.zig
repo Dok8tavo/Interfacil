@@ -191,3 +191,64 @@ test "Container: iterator" {
     try std.testing.expectEqualDeep(iterator.next(), 8);
     try std.testing.expectEqualDeep(iterator.next(), null);
 }
+
+test "Non-zeros: iterating, filtering and mapping" {
+    var start: u8 = 1;
+    var non_zeros = collections.iterating.Iterator(u8){
+        .ctx = &start,
+        .vtable = .{
+            .curr = &struct {
+                pub fn call(ctx: *anyopaque) ?u8 {
+                    const context: *u8 = @alignCast(@ptrCast(ctx));
+                    return if (context.* == 0) null else context.*;
+                }
+            }.call,
+            .skip = &struct {
+                pub fn call(ctx: *anyopaque) void {
+                    const context: *u8 = @alignCast(@ptrCast(ctx));
+                    if (context.* != 0) context.* +%= 1;
+                }
+            }.call,
+        },
+    };
+
+    {
+        defer start = 1;
+        for (1..256) |i| {
+            try std.testing.expectEqual(@as(u8, @intCast(i)), non_zeros.next());
+        }
+
+        try expect(non_zeros.next() == null);
+    }
+
+    {
+        defer start = 1;
+        const condition = struct {
+            pub fn call(n: u8) bool {
+                return n % 4 == 0;
+            }
+        }.call;
+
+        const filtered = non_zeros.filter(&condition);
+        while (filtered.next()) |num| {
+            try expect(condition(num));
+        }
+    }
+
+    {
+        defer start = 1;
+        const translator = struct {
+            var buffer: [16]u8 = undefined;
+            pub fn call(n: u8) []const u8 {
+                return std.fmt.bufPrint(&buffer, "{}", .{n}) catch unreachable;
+            }
+        }.call;
+
+        const mapped = non_zeros.map([]const u8, &translator);
+        for (1..256) |i| {
+            const item = mapped.next() orelse return error.Unreachable;
+            const parsed = try std.fmt.parseInt(u8, item, 10);
+            try std.testing.expectEqual(i, parsed);
+        }
+    }
+}

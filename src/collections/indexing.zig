@@ -12,7 +12,7 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
         pub const getItem = contract.require(.get, fn (self: Self, index: usize) ?Item);
 
         pub fn setItem(self: VarSelf, index: usize, item: Item) error{OutOfBounds}!?Item {
-            const old = getItem(contract.asValue(self), index);
+            const old = getItem(contract.asSelf(self), index);
             try set(self, index, item);
             return old;
         }
@@ -29,16 +29,12 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
                 self.index += 1;
             }
 
-            fn skipBackWrapper(self: *IndexableIterator) void {
-                self.index -|= 1;
-            }
-
-            pub usingnamespace iterating.BidirectionIterable(Contractor, .{
+            pub usingnamespace iterating.Iterable(Contractor, .{
                 .Self = IndexableIterator,
                 .Item = Item,
+                .mutation = contract.mutation,
                 .curr = currWrapper,
                 .skip = skipWrapper,
-                .skipBack = skipBackWrapper,
             });
         };
 

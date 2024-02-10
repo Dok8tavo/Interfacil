@@ -1,4 +1,5 @@
 const std = @import("std");
+const utils = @import("../utils.zig");
 const contracts = @import("../contracts.zig");
 
 /// # Iterable
@@ -47,26 +48,22 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             return curr(self);
         }
 
-        pub fn populateSliceBuffer(self: VarSelf, buffer: []Item) error{OutOfBounds}![]Item {
-            var index: usize = 0;
-            return while (next(self)) |item| {
-                if (index == buffer.len) break error.OutOfBounds;
-                buffer[index] = item;
-                index += 1;
-            } else buffer[0..index];
+        pub fn filter(self: *Self, condition: *const fn (Item) bool) Filter(Item) {
+            return Filter(Item){
+                .iterator = asIterator(self),
+                .condition = condition,
+            };
         }
 
-        pub fn populateSliceAlloc(
-            self: VarSelf,
-            allocator: std.mem.Allocator,
-        ) error{OutOfMemory}![]Item {
-            var array_list = std.ArrayList(Item).init(allocator);
-            while (next(self)) |item| {
-                try array_list.append(item);
-            }
-
-            array_list.shrinkRetainingCapacity(array_list.items.len);
-            return array_list.items;
+        pub fn map(
+            self: *Self,
+            comptime To: type,
+            translator: *const fn (Item) To,
+        ) Map(Item, To) {
+            return Map(Item, To){
+                .iterator = asIterator(self),
+                .translator = translator,
+            };
         }
 
         pub fn asIterator(self: *Self) Iterator(Item) {
@@ -75,13 +72,13 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
                 .vtable = .{
                     .skip = &struct {
                         pub fn call(context: *anyopaque) void {
-                            const ctx: *Self = @alignCast(@ptrCast(context));
+                            const ctx: *Self = utils.cast(Self, context);
                             skip(contract.asVarSelf(ctx));
                         }
                     }.call,
                     .curr = &struct {
                         pub fn call(context: *anyopaque) ?Item {
-                            const ctx: *Self = @alignCast(@ptrCast(context));
+                            const ctx: *Self = utils.cast(Self, context);
                             return curr(ctx.*);
                         }
                     }.call,
@@ -119,103 +116,58 @@ pub fn Iterator(comptime Item: type) type {
     };
 }
 
-/// # BidirectionIterable
-///
-/// TODO
-///
-/// ## Clauses
-///
-/// TODO
-///
-/// ## Declarations
-///
-/// TODO
-///
-/// ## Usage
-///
-/// TODO
-///
-/// ## Testing
-///
-/// TODO
-///
-pub fn BidirectionIterable(comptime Contractor: type, comptime clauses: anytype) type {
-    const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const VarSelf: type = contract.VarSelf;
-    const Item = contract.require(.Item, type);
-    const skipBack = contract.require(.skipBack, fn (VarSelf) void);
-    const forwards_iterable = Iterable(Contractor, clauses);
-    const backwards_iterable = Iterable(Contractor, .{
-        .Self = Self,
-        .mutation = contract.mutation,
-        .Item = Item,
-        .skip = skipBack,
-        .curr = forwards_iterable.curr,
-    });
-
+pub fn Filter(comptime Item: type) type {
     return struct {
-        pub usingnamespace forwards_iterable;
-        pub const prevTimes = backwards_iterable.nextTimes;
-        pub const prev = backwards_iterable.next;
-        pub const skipBackTimes = backwards_iterable.skipTimes;
+        const Self = @This();
 
-        pub fn asBidirectionIterator(self: *Self) BidirectionIterator(Item) {
-            return BidirectionIterator(Item){
-                .ctx = self,
-                .vtable = .{
-                    .skip = &forwards_iterable.skip,
-                    .curr = &forwards_iterable.curr,
-                    .skipBack = &skipBack,
-                },
-            };
+        iterator: Iterator(Item),
+        condition: *const fn (Item) bool,
+
+        fn skipFn(self: Self) void {
+            self.iterator.skip();
+            while (self.iterator.curr()) |item| {
+                if (self.condition(item)) break;
+                self.iterator.skip();
+            }
         }
 
-        pub fn asBackwardsIterator(self: *Self) Iterator(Item) {
-            return Backwards.asIterator(self);
+        fn currFn(self: Self) ?Item {
+            const item = self.iterator.curr() orelse return null;
+            if (self.condition(item)) return item;
+            skipFn(self);
+            return self.iterator.curr();
         }
 
-        pub const Backwards = BidirectionIterable(Contractor, .{
-            .Self = Self,
-            .mutation = contract.mutation,
+        pub usingnamespace Iterable(Self, .{
+            .mutation = contracts.Mutation.by_val,
             .Item = Item,
-            .skip = backwards_iterable.skip,
-            .skipBack = forwards_iterable.skip,
-            .curr = forwards_iterable.curr,
+            .skip = skipFn,
+            .curr = currFn,
         });
     };
 }
 
-/// TODO
-pub fn BidirectionIterator(comptime Item: type) type {
+pub fn Map(comptime From: type, comptime To: type) type {
     return struct {
         const Self = @This();
 
-        ctx: *anyopaque,
-        vtable: struct {
-            skip: *const fn (*anyopaque) void,
-            curr: *const fn (*anyopaque) ?*Item,
-            skipBack: *const fn (*anyopaque) void,
-        },
-
-        fn skipBackFn(self: Self) void {
-            self.vtable.skipBack(self.ctx);
-        }
-
-        fn currFn(self: Self) ?Item {
-            return self.vtable.curr(self.ctx);
-        }
+        iterator: Iterator(From),
+        translator: *const fn (From) To,
 
         fn skipFn(self: Self) void {
-            self.vtable.skip(self.ctx);
+            self.iterator.skip();
         }
 
-        pub usingnamespace Iterable(Iterator, .{
+        fn currFn(self: Self) ?To {
+            const item = self.iterator.curr() orelse return null;
+            return self.translator(item);
+        }
+
+        pub usingnamespace Iterable(Self, .{
             .mutation = contracts.Mutation.by_val,
-            .Item = Item,
-            .curr = currFn,
+            .Item = To,
             .skip = skipFn,
-            .skipBack = skipBackFn,
+            .curr = currFn,
         });
     };
 }

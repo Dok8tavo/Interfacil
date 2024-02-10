@@ -257,3 +257,7 @@ pub inline fn todo(
 pub inline fn undef(comptime Undefined: type) Undefined {
     return @as(Undefined, undefined);
 }
+
+pub inline fn cast(comptime T: type, ptr: *anyopaque) *T {
+    return @alignCast(@ptrCast(ptr));
+}
