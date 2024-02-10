@@ -57,7 +57,10 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             } else buffer[0..index];
         }
 
-        pub fn populateSliceAlloc(self: VarSelf, allocator: std.mem.Allocator,) error{OutOfMemory}![]Item {
+        pub fn populateSliceAlloc(
+            self: VarSelf,
+            allocator: std.mem.Allocator,
+        ) error{OutOfMemory}![]Item {
             var array_list = std.ArrayList(Item).init(allocator);
             while (next(self)) |item| {
                 try array_list.append(item);

@@ -21,11 +21,10 @@ pub fn Contract(
     /// or the options available, for returning the interface.
     comptime clauses: anytype,
 ) type {
+    // Struct literals are weird sometimes. Using `@Type · @typeInfo` on them is a way to
+    // ensure that we'll get a proper struct type.
+    const Clauses: type = @Type(@typeInfo(@TypeOf(clauses)));
     return struct {
-        // Struct literals are weird sometimes. Using `@Type · @typeInfo` on them is a way to
-        // ensure that we'll get a proper struct type.
-        const Clauses: type = @Type(@typeInfo(@TypeOf(clauses)));
-
         /// This function asks the `clauses` of the contract for a field with the same name as
         /// the `clause` parameter, and of the same type as the `default_clause` parameter. If no
         /// such field is found, it'll return the `default_clause` instead.
@@ -92,9 +91,15 @@ pub fn Contract(
         /// This function returns `*Self` if the `.mut_by_value` clause is `false` (which it is by
         /// default), `Self` else.
         pub fn getVarSelf() type {
-            const mut_by_value = default(.mut_by_value, false);
-            const Self = default(.Self, Contractor);
             return if (mut_by_value) Self else *Self;
+        }
+
+        pub fn asValue(self: VarSelf) Self {
+            if (mut_by_value) self else self.*;
+        }
+
+        pub fn asRef(self: *VarSelf) *Self {
+            return if (mut_by_value) self else self.*;
         }
 
         /// This function returns the `.sample` clause, by default an empty const slice of `Self`.
@@ -112,5 +117,9 @@ pub fn Contract(
 
             return clause;
         }
+
+        const mut_by_value = default(.mut_by_value, false);
+        const Self = getSelf();
+        const VarSelf = getVarSelf();
     };
 }

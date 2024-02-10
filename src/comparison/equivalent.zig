@@ -105,21 +105,18 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
         /// interface. The tests are using the `sample` clause on the testing functions.
         pub const testing_equivalency = struct {
             pub fn testingReflexivity(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x|
                     if (!eq(x, x))
                         return error.NoReflexivity;
             }
 
             pub fn testingSymmetry(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x| for (s) |y|
                     if (eq(x, y) != eq(y, x))
                         return error.NoSymmetry;
             }
 
             pub fn testingTransitivity(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x| for (s) |y| for (s) |z|
                     if (eq(x, y) and eq(y, z) and !eq(x, z))
                         return error.NoTransitivity;
@@ -305,7 +302,6 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
         /// interface. The tests are using the `sample` clause on the testing functions.
         pub const testing_partial_equivalency = struct {
             pub fn testingAlmostReflexivity(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x| {
                     const x_x = eq(x, x) orelse continue;
                     if (!x_x)
@@ -314,7 +310,6 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
             }
 
             pub fn testingAlmostSymmetry(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x| for (s) |y| {
                     const x_y = eq(x, y) orelse continue;
                     const y_x = eq(y, x) orelse continue;
@@ -324,7 +319,6 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
             }
 
             pub fn testingAlmostTransitivity(s: []const Self) !void {
-                if (contract.hasClause(.eq)) return;
                 for (s) |x| for (s) |y| for (s) |z| {
                     const x_y = eq(x, y) orelse continue;
                     const y_z = eq(y, z) orelse continue;
