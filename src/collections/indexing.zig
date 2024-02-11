@@ -17,6 +17,13 @@ pub fn Indexable(comptime Contractor: type, comptime clauses: anytype) type {
             return old;
         }
 
+        pub fn swapItems(self: VarSelf, index_a: usize, index_b: usize) error{OutOfBounds}!void {
+            const item_a = getItem(contract.asSelf(self), index_a) orelse return error.OutOfBounds;
+            const item_b = getItem(contract.asSelf(self), index_b) orelse return error.OutOfBounds;
+            _ = setItem(self, index_a, item_b);
+            _ = setItem(self, index_b, item_a);
+        }
+
         pub const IndexableIterator = struct {
             context: *Self,
             index: usize = 0,
