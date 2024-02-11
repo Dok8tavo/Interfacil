@@ -108,6 +108,13 @@ pub fn Contract(
             };
         }
 
+        pub fn asVarPointer(self: VarSelf) *Self {
+            return switch (mutation) {
+                .by_ref => self,
+                .by_val => @constCast(&self),
+            };
+        }
+
         /// This is the `.sample` clause, by default an empty const slice of `Self`.
         pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
 
