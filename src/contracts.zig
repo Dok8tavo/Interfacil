@@ -119,7 +119,17 @@ pub fn Contract(
         pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
 
         /// TODO
-        pub const mutation: Mutation = default(.mutation, Mutation.by_ref);
+        pub const mutation: Mutation = if (hasClauseTyped(.mutation, Mutation))
+            default(.mutation, Mutation.by_ref)
+        else if (hasClauseTyped(.mutation, EnumLiteral)) enum_literal: {
+            const enum_literal = require(.mutation, EnumLiteral);
+            break :enum_literal if (enum_literal == .by_ref)
+                Mutation.by_ref
+            else if (enum_literal == .by_val)
+                Mutation.by_val
+            else
+                require(.mutation, Mutation);
+        } else require(.mutation, Mutation);
 
         fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
