@@ -6,6 +6,8 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const EnumLiteral = utils.EnumLiteral;
 
+/// This type is used for a clause to determine whether `VarSelf` should be a value `Self` or a
+/// reference `*Self`.
 pub const Mutation = enum { by_val, by_ref };
 
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
@@ -94,6 +96,8 @@ pub fn Contract(
             .by_ref => *Self,
         };
 
+        /// This function takes a `VarSelf` value, either `*Self` or `Self`, and returns an
+        /// instance of `Self`.
         pub inline fn asSelf(self: VarSelf) Self {
             return switch (mutation) {
                 .by_ref => self.*,
@@ -101,6 +105,8 @@ pub fn Contract(
             };
         }
 
+        /// This function takes a `Self` reference and returns an instance of `VarSelf`, either
+        /// `*Self` or `Self`.
         pub inline fn asVarSelf(self: *Self) VarSelf {
             return switch (mutation) {
                 .by_ref => self,
@@ -108,17 +114,11 @@ pub fn Contract(
             };
         }
 
-        pub inline fn asVarPointer(self: VarSelf) *Self {
-            return switch (mutation) {
-                .by_ref => self,
-                .by_val => @constCast(&self),
-            };
-        }
-
         /// This is the `.sample` clause, by default an empty const slice of `Self`.
         pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
 
-        /// TODO
+        /// The mutation determines whether `VarSelf` should be a reference (`*Self`) or a value
+        /// (`Self`).
         pub const mutation: Mutation = if (hasClauseTyped(.mutation, Mutation))
             default(.mutation, Mutation.by_ref)
         else if (hasClauseTyped(.mutation, EnumLiteral)) enum_literal: {
@@ -129,7 +129,7 @@ pub fn Contract(
                 Mutation.by_val
             else
                 require(.mutation, Mutation);
-        } else require(.mutation, Mutation);
+        } else Mutation.by_ref;
 
         inline fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
