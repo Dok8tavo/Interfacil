@@ -41,7 +41,7 @@ pub fn Contract(
         /// pub const count = contract.default(.count, default_count);
         /// pub const default_count = 8
         /// ```
-        pub fn default(
+        pub inline fn default(
             comptime clause: EnumLiteral,
             comptime default_clause: anytype,
         ) @TypeOf(default_clause) {
@@ -51,12 +51,12 @@ pub fn Contract(
         }
 
         /// This function checks if a certain clause is given.
-        pub fn hasClause(comptime clause: EnumLiteral) bool {
+        pub inline fn hasClause(comptime clause: EnumLiteral) bool {
             return @hasField(Clauses, @tagName(clause));
         }
 
         /// This function checks if a certain clause is given and has the right type.
-        pub fn hasClauseTyped(comptime clause: EnumLiteral, comptime Clause: type) bool {
+        pub inline fn hasClauseTyped(comptime clause: EnumLiteral, comptime Clause: type) bool {
             return hasClause(clause) and Clause == @TypeOf(@field(
                 clauses,
                 @tagName(clause),
@@ -75,7 +75,7 @@ pub fn Contract(
         /// // will trigger a compile error with a meaningful message.
         /// pub const count = contract.require(.count, comptime_int);
         /// ```
-        pub fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
+        pub inline fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
             const name: []const u8 = @tagName(clause);
             if (!hasClause(clause)) utils.compileError(
                 "Interface of {s} requires a `.{s}` clause of type `{s}`!",
@@ -94,21 +94,21 @@ pub fn Contract(
             .by_ref => *Self,
         };
 
-        pub fn asSelf(self: VarSelf) Self {
+        pub inline fn asSelf(self: VarSelf) Self {
             return switch (mutation) {
                 .by_ref => self.*,
                 .by_val => self,
             };
         }
 
-        pub fn asVarSelf(self: *Self) VarSelf {
+        pub inline fn asVarSelf(self: *Self) VarSelf {
             return switch (mutation) {
                 .by_ref => self,
                 .by_val => self.*,
             };
         }
 
-        pub fn asVarPointer(self: VarSelf) *Self {
+        pub inline fn asVarPointer(self: VarSelf) *Self {
             return switch (mutation) {
                 .by_ref => self,
                 .by_val => @constCast(&self),
@@ -131,7 +131,7 @@ pub fn Contract(
                 require(.mutation, Mutation);
         } else require(.mutation, Mutation);
 
-        fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
+        inline fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
             const Clause = @TypeOf(clause);
             if (Clause != Type) utils.compileError(

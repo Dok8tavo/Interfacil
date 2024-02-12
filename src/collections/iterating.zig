@@ -101,9 +101,12 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     const VarSelf: type = contract.VarSelf;
     const Item = contract.require(.Item, type);
     const skipClause = contract.require(.skip, fn (VarSelf) void);
+    const currClause = contract.require(.curr, fn (Self) ?Item);
     return struct {
         /// This function returns the iterable currently "points" to.
-        pub const curr = contract.require(.curr, fn (Self) ?Item);
+        pub fn curr(self: Self) ?Item {
+            return currClause(self);
+        }
 
         /// TODO
         pub fn next(self: VarSelf) ?Item {
