@@ -25,29 +25,29 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     const Self: type = contract.Self;
     const VarSelf: type = contract.VarSelf;
     const Error: type = std.mem.Allocator.Error;
+    const allocFn = contract.require(.alloc, fn (
+        self: Self,
+        len: usize,
+        ptr_align: u8,
+        ret_addr: usize,
+    ) ?[*]u8);
+
+    const resizeFn = contract.require(.resize, fn (
+        self: VarSelf,
+        buf: []u8,
+        buf_align: u8,
+        new_len: usize,
+        ret_addr: usize,
+    ) bool);
+
+    const freeFn = contract.require(.free, fn (
+        self: VarSelf,
+        buf: []u8,
+        buf_align: u8,
+        ret_addr: usize,
+    ) void);
+
     return struct {
-        const allocFn = contract.require(.alloc, fn (
-            self: Self,
-            len: usize,
-            ptr_align: u8,
-            ret_addr: usize,
-        ) ?[*]u8);
-
-        const resizeFn = contract.require(.resize, fn (
-            self: VarSelf,
-            buf: []u8,
-            buf_align: u8,
-            new_len: usize,
-            ret_addr: usize,
-        ) bool);
-
-        const freeFn = contract.require(.free, fn (
-            self: VarSelf,
-            buf: []u8,
-            buf_align: u8,
-            ret_addr: usize,
-        ) void);
-
         pub fn noResize(
             self: VarSelf,
             buf: []u8,
@@ -416,9 +416,9 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         }
 
         /// This isn't public, this is just for showcasing.
-        fn asAllocator(self: Self) Allocator {
+        fn asAllocator(self: *Self) Allocator {
             return Allocator{
-                .ctx = &self,
+                .ctx = self,
                 .vtable = .{
                     .alloc = &allocFn,
                     .resize = &resizeFn,
@@ -427,9 +427,9 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
-        pub fn asStdAllocator(self: Self) std.mem.Allocator {
+        pub fn asStdAllocator(self: *Self) std.mem.Allocator {
             return std.mem.Allocator{
-                .ptr = &self,
+                .ptr = self,
                 .vtable = .{
                     .alloc = &allocFn,
                     .resize = &resizeFn,

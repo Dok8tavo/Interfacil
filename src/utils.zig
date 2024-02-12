@@ -149,8 +149,7 @@ pub inline fn enumLiteral(comptime name: []const u8) EnumLiteral {
 /// if (condition) cold({
 ///     unlikely();
 ///     stillUnlikely();
-/// })
-/// else moreLikely();
+/// }) else moreLikely();
 ///
 /// switch (value) {
 ///     likely => hot({
@@ -171,11 +170,8 @@ pub inline fn hot(value: anytype) @TypeOf(value) {
     return value;
 }
 
-/// This function cast the given value into an optional.
-pub inline fn maybe(value: anytype) ?@TypeOf(value) {
-    return value;
-}
-
+/// # Result
+///
 /// In Zig, errors are values. You can't carry much information in them, apart from the kind of
 /// error it is. Sometimes it would be interesting to do so, like if you'd want some about who
 /// emitted the error, when, from where, what can be done to fix it, etc.
@@ -184,6 +180,57 @@ pub inline fn maybe(value: anytype) ?@TypeOf(value) {
 /// `pass: Pass` variant, or an errorful result in the `fail: Fail` variant. In order to get the
 /// result, you should use the `get` or `nab` method, which will force you to handle the error if
 /// there's one.
+///
+/// ## Usage
+///
+/// ### Passing error messages
+///
+/// ```zig
+/// fn failing() Result(Success, []const u8) {
+///     return .{ .fail = "The `failing` function did an oopsie!" };
+/// }
+///
+/// pub fn main() void {
+///     var fail_message: []const u8 = undefined;
+///     const success = failing().nab(&fail_message) orelse @panic(fail_message);
+///     _ = success
+/// }
+/// ```
+///
+/// ### Passing multiple errors
+///
+/// ```zig
+/// const Res = Result(Success, ArrayList(anyerror));
+/// fn failing(allocator: Allocator) Res {
+///     var errors = ArrayList(anyerror).init(allocator);
+///     // ...
+///     errors.append(error.FirstFail) catch @panic("OOM!");
+///     // ...
+///     errors.append(error.SecondFail) catch @panic("OOM!");
+///     // ...
+///
+///     return if (errors.items.len == 0) .{
+///         .pass = ...,
+///     } else .{ .fail = errors };
+/// }
+///
+/// pub fn main() !void {
+///     var errors: Res.Fail = undefined;
+///     errdefer errors.deinit();
+///     const res = failing(allocator);
+///     const pass = res.nab(&errors) orelse {
+///         const stderr = std.io.getStdErr().writer();
+///         for (errors.items) |e| {
+///             try stderr.print("{any}\n", .{e});
+///         }
+///
+///         return error.Fail;
+///     };
+/// 
+///     _ = pass;
+/// }
+/// ```
+///
 pub fn Result(comptime P: type, comptime F: type) type {
     return union(enum) {
         const Self = @This();
@@ -258,6 +305,7 @@ pub inline fn undef(comptime Undefined: type) Undefined {
     return @as(Undefined, undefined);
 }
 
+/// This function cast an opaque pointer to a typed pointer.
 pub inline fn cast(comptime T: type, ptr: *anyopaque) *T {
     return @alignCast(@ptrCast(ptr));
 }

@@ -78,9 +78,9 @@ pub fn Sliceable(comptime Contractor: type, comptime clauses: anytype) type {
             .set = setItemWrapper,
         });
 
-        pub fn asSlicer(self: Self) Slicer(Item) {
+        pub fn asSlicer(self: *Self) Slicer(Item) {
             return Slicer(Item){
-                .context = &self,
+                .context = self,
                 .vtable = .{
                     .slice = &sliceFn,
                 },
