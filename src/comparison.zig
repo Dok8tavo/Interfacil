@@ -3,3 +3,8 @@ pub const ordered = @import("comparison/ordered.zig");
 
 pub usingnamespace equivalent;
 pub usingnamespace ordered;
+
+test {
+    _ = equivalent;
+    _ = ordered;
+}

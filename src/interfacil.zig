@@ -12,6 +12,16 @@ pub const members = @import("members.zig");
 pub const memory = @import("memory.zig");
 pub const utils = @import("utils.zig");
 
+test {
+    _ = comparison;
+    _ = contracts;
+    _ = io;
+    _ = collections;
+    _ = members;
+    _ = memory;
+    _ = utils;
+}
+
 const std = @import("std");
 const expect = std.testing.expect;
 
