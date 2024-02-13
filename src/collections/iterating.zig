@@ -10,8 +10,8 @@ const contracts = @import("../contracts.zig");
 ///
 /// ## Clauses
 ///
-/// - `Self` is the type that will use the namespace returned by the interface. It shouldn't be a
-/// pointer. By default `Self` is the contractor.
+/// - `Self` is the type that will use the namespace returned by the interface. By default `Self`
+/// is the contractor.
 /// - `mutation` determine whether `VarSelf` is `*Self` or `Self`. By default `mutation` is
 /// `by_ref`.
 /// - `Item` is the return type of the items the iterator will return, it's required.
@@ -25,11 +25,9 @@ const contracts = @import("../contracts.zig");
 /// 1. the current function `curr: fn (Self) ?Item`,
 /// 2. the filter function `filter: fn (*Self, *const fn (Item) bool) Filter(Item)`,
 /// 2. the map function `map: fn (*Self, To, *const fn (Item) To) Map(Item, To)`,
-/// 2. the next function `next: fn (VarSelf) ?Item`:
-///     - the multiple nexts function `nextTimes: fn (VarSelf, usize) ?Item`,
+/// 2. the next function `next: fn (VarSelf) ?Item`,
 /// 3. the reduce function `reduce: fn (*Self, *const fn (Item, Item) Item) Reduce(Item)`,
-/// 3. the skip function `skip: fn (VarSelf) void`:
-///     - the multiple skips function `skipTimes: fn (VarSelf, usize) void`,
+/// 3. the skip function `skip: fn (VarSelf) void`,
 /// 4. the iterator function `asIterator: fn (*Self) Iterator(Item)`.
 ///
 /// ### The current function `curr: fn (Self) ?Item`
@@ -56,14 +54,30 @@ const contracts = @import("../contracts.zig");
 /// assert(iterable.curr().? == e);
 /// iterable.skip();
 /// assert(iterable.curr().? == 'l');
-/// iterable.skipTimes(2);
+/// iterable.skip();
+/// iterable.skip();
 /// assert(iterable.curr().? == 'o');
-/// const w = iterable.nextTimes(2);
+/// iterable.next();
 /// assert(iterable.curr().? == w);
 /// ```
 ///
-/// Note that whenever `curr` is used right after `next` or `nextTimes`, their results are the
-/// equal to one another.
+/// Note that whenever `curr` is used right before `next`, their results are equal to
+/// one another.
+///
+/// ### The next function `next: fn (self: VarSelf) ?Item`
+///
+/// This function returns the current item then skip. If there's no current item, it only returns
+/// `null`.
+///
+/// #### Usage
+///
+/// ```zig
+/// var iterable = ...;
+/// while (iterable.next()) |item| {
+///     // do smth with the item
+/// }
+/// // now the iterable has been consumed
+/// ```
 ///
 /// ### The skip function `skip: fn (self: VarSelf) void`
 ///
@@ -86,10 +100,70 @@ const contracts = @import("../contracts.zig");
 /// assert(iterable.curr() == null);
 /// ```
 ///
-/// #### The multiple skip function `skipTimes: fn (self: VarSelf, times: usize) void`
+/// ### The filter function: `filter: fn (self: *Self, condition: fn (Item) bool) Filter(Item)`
 ///
-/// This function uses `skip` the given number of times, or until the `curr` function returns
-/// `null`.
+/// This function's return will iterate through the items of `self`, skipping those that
+/// don't fulfill the `condition` parameter. Calling the `condition` on any item of the
+/// `filter`s result is guaranteed to return `true`. If the iterable represents a sequence,
+/// then the `filter`s result is a subsequence.
+///
+/// #### Usage
+///
+/// Discards invalid items.
+///
+/// ```zig
+/// var iterable = ...;
+/// const items = iterable.filter(isValid);
+/// while (items) |valid_item| {
+///     // it's guaranteed that the `valid_item` passed to `isValid` returned `true`.
+///     ...
+/// }
+/// ```
+///
+/// ### The mapping function: `map: fn (self: *Self, comptime To: type, mapper: fn (Item) To) Map(Item, To)`
+///
+/// This function returns an iterable that will pass its items through the mapper before
+/// returning them.
+///
+/// #### Usage
+///
+/// ```zig
+/// const numbers_as_strings = ...;
+/// var iterable = from(numbers_as_strings);
+/// const numbers = iterable.map(ParseIntError!usize, parseInt(usize)).filter(noError);
+/// while (numbers) |number| {
+///     // number is a `usize`, strings that couldn't be parsed were discarded.
+///     ...
+/// }
+/// ```
+///
+/// ### The reduce function: `reduce: fn (self: *Self, operation: fn (Item, Item) Item) Reduce(Item)`
+///
+/// This function's return will iterate through the partial of `self`. Which means it'll
+/// apply the operation on the preceding item and the current item before returning.
+///
+/// #### Usage
+///
+/// ```zig
+/// var iterable = sequence(.{0, 1, 2, 3, 4});
+/// const reduced_iterable = iterable.reduce(sum);
+/// assert(reduced_iterable.next().? == 0);
+/// // the `sum` of 0 and 1
+/// assert(reduced_iterable.next().? == 1);
+/// // the `sum` of 0 and 1, and then 2
+/// assert(reduced_iterable.next().? == 3);
+/// // the `sum` of 0 and 1, and then 2, and then 3
+/// assert(reduced_iterable.next().? == 6);
+/// // the `sum` of 0 and 1, and then 2, and then 3, and then 4,
+/// assert(reduced_iterable.next().? == 10);
+/// assert(reduced_iterable.next() == null);
+/// ```
+///
+/// ### The interfacing function: `asIterator: fn (self: *Self) Iterator(Item)`
+///
+/// This function returns a dynamic interface for iterating through `self`. It's type
+/// agnostic of `self`, so you can pass it to precompiled functions, no need to use
+/// `anytype`.
 ///
 /// ## Testing
 ///
@@ -97,18 +171,20 @@ const contracts = @import("../contracts.zig");
 ///
 pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const VarSelf: type = contract.VarSelf;
-    const Item = contract.require(.Item, type);
-    const skipClause = contract.require(.skip, fn (VarSelf) void);
-    const currClause = contract.require(.curr, fn (Self) ?Item);
     return struct {
+        const Self: type = contract.Self;
+        const VarSelf: type = contract.VarSelf;
+        const Item: type = contract.require(.Item, type);
+        const skipClause = contract.require(.skip, fn (VarSelf) void);
+        const currClause = contract.require(.curr, fn (Self) ?Item);
+
         /// This function returns the iterable currently "points" to.
         pub fn curr(self: Self) ?Item {
             return currClause(self);
         }
 
-        /// TODO
+        /// This function returns the current item then skip. If there's no current item, it only
+        /// returns `null`.
         pub fn next(self: VarSelf) ?Item {
             if (curr(contract.asSelf(self))) |item| {
                 defer skip(self);
@@ -116,27 +192,18 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             } else return null;
         }
 
-        /// TODO
-        pub fn nextTimes(self: VarSelf, times: usize) ?Item {
-            skipTimes(self, times);
-            return curr(self);
-        }
-
         /// This function modifiy the state of the iterable so that it points to the very next
         /// item. If there's no next item, it'll point to `null`. If there's not even a current
         /// item, it won't do anything. It is equivalent to ignoring the result of the `next`
         /// function.
         pub fn skip(self: VarSelf) void {
-            if (curr(self)) |_| skipClause(self);
+            if (curr(contract.asSelf(self))) |_| skipClause(self);
         }
 
-        /// This function uses `skip` the given number of times, or until the `curr` function
-        /// returns `null`.
-        pub fn skipTimes(self: VarSelf, times: usize) void {
-            for (0..times) |_| if (next(self) == null) return null;
-        }
-
-        /// TODO
+        /// This function's return will iterate through the items of `self`, skipping those that
+        /// don't fulfill the `condition` parameter. Calling the `condition` on any item of the
+        /// `filter`s result is guaranteed to return `true`. If the iterable represents a sequence,
+        /// then the `filter`s result is a subsequence.
         pub fn filter(self: *Self, condition: *const fn (Item) bool) Filter(Item) {
             return Filter(Item){
                 .iterator = asIterator(self),
@@ -144,7 +211,8 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
-        /// TODO
+        /// This function's return will iterate through the partial of `self`. Which means it'll
+        /// apply the operation on the preceding item and the current item before returning.
         pub fn reduce(self: *Self, operation: *const fn (Item, Item) Item) Reduce(Item) {
             return Reduce(Item){
                 .iterator = asIterator(self),
@@ -152,7 +220,8 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
-        /// TODO
+        /// This function returns an iterable that will pass its items through the mapper before
+        /// returning them.
         pub fn map(
             self: *Self,
             comptime To: type,
@@ -164,7 +233,9 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
-        /// TODO
+        /// This function returns a dynamic interface for iterating through `self`. It's type
+        /// agnostic of `self`, so you can pass it to precompiled functions, no need to use
+        /// `anytype`.
         pub fn asIterator(self: *Self) Iterator(Item) {
             const Fn = struct {
                 pub fn skipFn(context: *anyopaque) void {
