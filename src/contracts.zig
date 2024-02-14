@@ -73,9 +73,9 @@ pub fn Contract(
         ///
         /// ```zig
         /// // This will ask for a `comptime_int` to be passed as a field named `count`. If
-        /// // There's none, or if there's field named `count` but it isn't a `comptime_int`, it
+        /// // There's none, or if there's field named `count` but it isn't a `usize`, it
         /// // will trigger a compile error with a meaningful message.
-        /// pub const count = contract.require(.count, comptime_int);
+        /// pub const count = contract.require(.count, usize);
         /// ```
         pub inline fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
             const name: []const u8 = @tagName(clause);
