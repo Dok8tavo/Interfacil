@@ -1,6 +1,7 @@
 const std = @import("std");
 const utils = @import("../utils.zig");
 const contracts = @import("../contracts.zig");
+const comparison = @import("../comparison.zig");
 
 /// # Iterable
 ///
@@ -242,6 +243,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
                     const ctx: *Self = utils.cast(Self, context);
                     skip(contract.asVarSelf(ctx));
                 }
+
                 pub fn currFn(context: *anyopaque) ?Item {
                     const ctx: *Self = utils.cast(Self, context);
                     return curr(ctx.*);
@@ -256,6 +258,47 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
                 },
             };
         }
+
+        pub const iterable_testing = struct {
+            pub const sample = contract.sample;
+            pub const expect = switch (sample.len) {
+                0 => .{},
+                else => contract.require(.expect, [sample.len][]const Item),
+            };
+
+            const equality = comparison.Equivalent(Contractor, .{
+                .Self = Item,
+                .eq = contract.default(.equals, comparison.equalsFn(Item)),
+                .sample = sample: {
+                    var concat: []const Item = &.{};
+                    for (sample) |items| {
+                        concat = concat ++ items;
+                    }
+
+                    break :sample concat;
+                },
+            });
+
+            /// TODO: use `Result` for better detailed errors
+            pub fn isSliceIsomorphic(self: VarSelf, slice: []const Item) bool {
+                return for (slice) |item| {
+                    const curr_item = curr(self) orelse break false;
+                    const next_item = next(self) orelse break false;
+                    if (!equality.eq(curr_item, next_item)) break false;
+                    if (!equality.eq(curr_item, item)) break false;
+                } else true;
+            }
+
+            test "Iterable: Items equality" {
+                _ = equality;
+            }
+
+            test "Iterable: isSliceIsomorphic" {
+                for (sample, expect) |a, b| {
+                    try std.testing.expect(isSliceIsomorphic(a, b));
+                }
+            }
+        };
     };
 }
 
