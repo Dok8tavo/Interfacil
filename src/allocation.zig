@@ -3,37 +3,23 @@ const contracts = @import("contracts.zig");
 
 /// # Allocating
 ///
-/// TODO
+/// The `Allocating` interface provide a similar interface than the `std.mem.Allocator`, with
+/// similar requirement (using clauses), and similar declarations.
 ///
-/// ## Clauses
-///
-/// TODO
-///
-/// ## Declarations
-///
-/// TODO
-///
-/// ## Usage
-///
-/// TODO
-///
-/// ## Testing
-///
-/// TODO
+/// Providing a similar, yet different `Allocator` type wouldn't be a good idea. This is why the
+/// dynamic counterpart of `Allocating` isn't `Allocator` but `StdAllocator` instead. The
+/// `asAllocator` method isn't available, use `asStdAllocator` instead.
 pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const VarSelf: type = contract.VarSelf;
-    const Error: type = std.mem.Allocator.Error;
     const allocFn = contract.require(.alloc, fn (
-        self: Self,
+        self: contract.Self,
         len: usize,
         ptr_align: u8,
         ret_addr: usize,
     ) ?[*]u8);
 
     const resizeFn = contract.require(.resize, fn (
-        self: VarSelf,
+        self: contract.VarSelf,
         buf: []u8,
         buf_align: u8,
         new_len: usize,
@@ -41,13 +27,16 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
     ) bool);
 
     const freeFn = contract.require(.free, fn (
-        self: VarSelf,
+        self: contract.VarSelf,
         buf: []u8,
         buf_align: u8,
         ret_addr: usize,
     ) void);
 
     return struct {
+        const Self: type = contract.Self;
+        const VarSelf: type = contract.VarSelf;
+        const Error: type = std.mem.Allocator.Error;
         pub fn noResize(
             self: VarSelf,
             buf: []u8,
@@ -182,14 +171,6 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
             }
         }
 
-        fn AllocWithOptionsPayload(comptime Elem: type, comptime alignment: ?u29, comptime sentinel: ?Elem) type {
-            if (sentinel) |s| {
-                return [:s]align(alignment orelse @alignOf(Elem)) Elem;
-            } else {
-                return []align(alignment orelse @alignOf(Elem)) Elem;
-            }
-        }
-
         /// Allocates an array of `n + 1` items of type `T` and sets the first `n`
         /// items to `undefined` and the last item to `sentinel`. Depending on the
         /// Allocator implementation, it may be required to call `free` once the
@@ -234,48 +215,6 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
                 return_address,
             ));
             return ptr[0..n];
-        }
-
-        fn allocWithSizeAndAlignment(
-            self: VarSelf,
-            comptime size: usize,
-            comptime alignment: u29,
-            n: usize,
-            return_address: usize,
-        ) Error![*]align(alignment) u8 {
-            const byte_count = std.math.mul(usize, size, n) catch return Error.OutOfMemory;
-            return allocBytesWithAlignment(self, alignment, byte_count, return_address);
-        }
-
-        fn allocBytesWithAlignment(
-            self: VarSelf,
-            comptime alignment: u29,
-            byte_count: usize,
-            return_address: usize,
-        ) Error![*]align(alignment) u8 {
-            // The Zig Allocator interface is not intended to solve alignments beyond
-            // the minimum OS page size. For these use cases, the caller must use OS
-            // APIs directly.
-            comptime std.debug.assert(alignment <= std.mem.page_size);
-
-            if (byte_count == 0) {
-                const ptr = comptime std.mem.alignBackward(
-                    usize,
-                    std.math.maxInt(usize),
-                    alignment,
-                );
-                return @as([*]align(alignment) u8, @ptrFromInt(ptr));
-            }
-
-            const byte_ptr = rawAlloc(
-                self,
-                byte_count,
-                log2a(alignment),
-                return_address,
-            ) orelse return Error.OutOfMemory;
-            // TODO: https://github.com/ziglang/zig/issues/4298
-            @memset(byte_ptr[0..byte_count], undefined);
-            return @as([*]align(alignment) u8, @alignCast(byte_ptr));
         }
 
         /// Requests to modify the size of an allocation. It is guaranteed to not move
@@ -401,6 +340,67 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
             return new_buf[0..m.len :0];
         }
 
+        pub fn asStdAllocator(self: *Self) std.mem.Allocator {
+            return std.mem.Allocator{
+                .ptr = self,
+                .vtable = .{
+                    .alloc = &allocFn,
+                    .resize = &resizeFn,
+                    .free = &freeFn,
+                },
+            };
+        }
+
+        fn AllocWithOptionsPayload(comptime Elem: type, comptime alignment: ?u29, comptime sentinel: ?Elem) type {
+            if (sentinel) |s| {
+                return [:s]align(alignment orelse @alignOf(Elem)) Elem;
+            } else {
+                return []align(alignment orelse @alignOf(Elem)) Elem;
+            }
+        }
+
+        fn allocWithSizeAndAlignment(
+            self: VarSelf,
+            comptime size: usize,
+            comptime alignment: u29,
+            n: usize,
+            return_address: usize,
+        ) Error![*]align(alignment) u8 {
+            const byte_count = std.math.mul(usize, size, n) catch return Error.OutOfMemory;
+            return allocBytesWithAlignment(self, alignment, byte_count, return_address);
+        }
+
+        fn allocBytesWithAlignment(
+            self: VarSelf,
+            comptime alignment: u29,
+            byte_count: usize,
+            return_address: usize,
+        ) Error![*]align(alignment) u8 {
+            // The Zig Allocator interface is not intended to solve alignments beyond
+            // the minimum OS page size. For these use cases, the caller must use OS
+            // APIs directly.
+            comptime std.debug.assert(alignment <= std.mem.page_size);
+
+            if (byte_count == 0) {
+                const ptr = comptime std.mem.alignBackward(
+                    usize,
+                    std.math.maxInt(usize),
+                    alignment,
+                );
+                return @as([*]align(alignment) u8, @ptrFromInt(ptr));
+            }
+
+            const byte_ptr = rawAlloc(
+                self,
+                byte_count,
+                log2a(alignment),
+                return_address,
+            ) orelse return Error.OutOfMemory;
+            // TODO: https://github.com/ziglang/zig/issues/4298
+            @memset(byte_ptr[0..byte_count], undefined);
+            return @as([*]align(alignment) u8, @alignCast(byte_ptr));
+        }
+
         /// TODO replace callsites with `@log2` after this proposal is implemented:
         /// https://github.com/ziglang/zig/issues/13642
         inline fn log2a(x: anytype) switch (@typeInfo(@TypeOf(x))) {
@@ -419,17 +419,6 @@ pub fn Allocating(comptime Contractor: type, comptime clauses: anytype) type {
         fn asAllocator(self: *Self) Allocator {
             return Allocator{
                 .ctx = self,
-                .vtable = .{
-                    .alloc = &allocFn,
-                    .resize = &resizeFn,
-                    .free = &freeFn,
-                },
-            };
-        }
-
-        pub fn asStdAllocator(self: *Self) std.mem.Allocator {
-            return std.mem.Allocator{
-                .ptr = self,
                 .vtable = .{
                     .alloc = &allocFn,
                     .resize = &resizeFn,
@@ -483,6 +472,6 @@ const Allocator = struct {
         .alloc = allocWrapper,
         .resize = resizeWrapper,
         .free = freeWrapper,
-        .mutation = contracts.Mutation.by_val,
+        .mutability = contracts.Mutability.by_val,
     });
 };

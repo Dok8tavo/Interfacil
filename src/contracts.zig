@@ -6,10 +6,7 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const EnumLiteral = utils.EnumLiteral;
 
-/// This type is used for a clause to determine whether `VarSelf` should be a value `Self` or a
-/// reference `*Self`.
-pub const Mutation = enum { by_val, by_ref };
-
+// TODO: implement coercion tools for clauses
 /// This function takes the clauses from the `clauses` parameter of the interface, type-checks
 /// them, and gives them back in order to return the namespace. It's considered responsible for
 /// providing thenecessary `clauses` and is often the type that receives the namespace, allowing
@@ -20,7 +17,7 @@ pub fn Contract(
     /// to be the one receiving the namespace, thus allowing to use method syntax on the function
     /// of the interface.
     comptime Contractor: type,
-    /// The clauses are a struct literal, whose fields will fullfill the requirement of the
+    /// The clauses are a struct literal, whose fields will fulfill the requirement of the
     /// contract. It's through them that the user will provide the values and declarations needed,
     /// or the options available, for returning the interface.
     comptime clauses: anytype,
@@ -29,6 +26,8 @@ pub fn Contract(
     // ensure that we'll get a proper struct type.
     const Clauses: type = @Type(@typeInfo(@TypeOf(clauses)));
     return struct {
+        // --- Requirements ---
+
         /// This function asks the `clauses` of the contract for a field with the same name as
         /// the `clause` parameter, and of the same type as the `default_clause` parameter. If no
         /// such field is found, it'll return the `default_clause` instead.
@@ -52,19 +51,6 @@ pub fn Contract(
             return typeChecked(name, @TypeOf(default_clause));
         }
 
-        /// This function checks if a certain clause is given.
-        pub inline fn hasClause(comptime clause: EnumLiteral) bool {
-            return @hasField(Clauses, @tagName(clause));
-        }
-
-        /// This function checks if a certain clause is given and has the right type.
-        pub inline fn hasClauseTyped(comptime clause: EnumLiteral, comptime Clause: type) bool {
-            return hasClause(clause) and Clause == @TypeOf(@field(
-                clauses,
-                @tagName(clause),
-            ));
-        }
-
         /// This function requires the `clauses` of the contract to provide a field with the same
         /// name as `clause`, and of type `Clause`.
         ///
@@ -80,18 +66,52 @@ pub fn Contract(
         pub inline fn require(comptime clause: EnumLiteral, comptime Clause: type) Clause {
             const name: []const u8 = @tagName(clause);
             if (!hasClause(clause)) utils.compileError(
-                "Interface of {s} requires a `.{s}` clause of type `{s}`!",
-                .{ @typeName(Contractor), name, @typeName(Clause) },
+                "`{s}` requires a `.{s}` clause of type `{s}`!",
+                .{ full_name, name, @typeName(Clause) },
             );
 
             return typeChecked(name, Clause);
         }
 
+        /// This function checks if a certain clause is given.
+        pub inline fn hasClause(comptime clause: EnumLiteral) bool {
+            return @hasField(Clauses, @tagName(clause));
+        }
+
+        /// This function checks if a certain clause is given and has the right type.
+        pub inline fn hasClauseTyped(comptime clause: EnumLiteral, comptime Clause: type) bool {
+            return hasClause(clause) and Clause == @TypeOf(@field(
+                clauses,
+                @tagName(clause),
+            ));
+        }
+
+        fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
+            const clause = @field(clauses, name);
+            const Clause = @TypeOf(clause);
+            if (Clause != Type) utils.compileError(
+                "{s} requires `.{s}` to be of type `{s}`, not `{s}`!",
+                .{ full_name, name, @typeName(Type), @typeName(Clause) },
+            );
+
+            return clause;
+        }
+
+        // --- Testing ---
+
+        /// This is the `.ub_checked` clause, by default `true`. For enabling runtime checks.
+        pub const ub_checked: bool = default(.ub_checked, true);
+
+        /// This is the `.sample` clause, by default an empty const slice of `Self`.
+        pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
+
+        // --- Mutation ---
+
         /// This is the `.Self` clause, by default `Contractor`.
         pub const Self: type = default(.Self, Contractor);
 
         /// This is the mutable version of `Self`.
-        pub const VarSelf: type = switch (mutation) {
+        pub const VarSelf: type = switch (mutability) {
             .by_val => Self,
             .by_ref => *Self,
         };
@@ -99,7 +119,7 @@ pub fn Contract(
         /// This function takes a `VarSelf` value, either `*Self` or `Self`, and returns an
         /// instance of `Self`.
         pub inline fn asSelf(self: VarSelf) Self {
-            return switch (mutation) {
+            return switch (mutability) {
                 .by_ref => self.*,
                 .by_val => self,
             };
@@ -108,38 +128,89 @@ pub fn Contract(
         /// This function takes a `Self` reference and returns an instance of `VarSelf`, either
         /// `*Self` or `Self`.
         pub inline fn asVarSelf(self: *Self) VarSelf {
-            return switch (mutation) {
+            return switch (mutability) {
                 .by_ref => self,
                 .by_val => self.*,
             };
         }
 
-        /// This is the `.sample` clause, by default an empty const slice of `Self`.
-        pub const sample: []const Self = default(.sample, @as([]const Self, &.{}));
-
-        /// The mutation determines whether `VarSelf` should be a reference (`*Self`) or a value
+        /// The mutability determines whether `VarSelf` should be a reference (`*Self`) or a value
         /// (`Self`).
-        pub const mutation: Mutation = if (hasClauseTyped(.mutation, Mutation))
-            default(.mutation, Mutation.by_ref)
-        else if (hasClauseTyped(.mutation, EnumLiteral)) enum_literal: {
-            const enum_literal = require(.mutation, EnumLiteral);
+        pub const mutability: Mutability = if (hasClauseTyped(.mutability, Mutability))
+            default(.mutability, Mutability.by_ref)
+        else if (hasClauseTyped(.mutability, EnumLiteral)) enum_literal: {
+            const enum_literal = require(.mutability, EnumLiteral);
             break :enum_literal if (enum_literal == .by_ref)
-                Mutation.by_ref
+                Mutability.by_ref
             else if (enum_literal == .by_val)
-                Mutation.by_val
+                Mutability.by_val
             else
-                require(.mutation, Mutation);
-        } else Mutation.by_ref;
+                require(.mutability, Mutability);
+        } else Mutability.by_ref;
 
-        inline fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
-            const clause = @field(clauses, name);
-            const Clause = @TypeOf(clause);
-            if (Clause != Type) utils.compileError(
-                "Interface of `{s}` requires `{s}` to be of type `{s}`, not `{s}`!",
-                .{ @typeName(Contractor), name, @typeName(Type), @typeName(Clause) },
-            );
+        // --- Naming ---
+        // TODO: default name defined from interface
 
-            return clause;
+        pub const interface_name = default(.interface_name, @as(?[]const u8, null));
+        pub const contractor_name = default(.contractor_name, @as(?[]const u8, null));
+        pub const self_name = default(.self_name, @as(?[]const u8, null));
+
+        pub fn getInterfaceName() []const u8 {
+            comptime {
+                return interface_name orelse "AnonymousInterface";
+            }
         }
+
+        pub fn getContractorName() []const u8 {
+            comptime {
+                return contractor_name orelse @typeName(Contractor);
+            }
+        }
+
+        pub fn getSelfName() []const u8 {
+            comptime {
+                return self_name orelse @typeName(Self);
+            }
+        }
+
+        const full_name: []const u8 = std.fmt.comptimePrint("{s}.{s}[{s}]", .{
+            getContractorName(),
+            getInterfaceName(),
+            getSelfName(),
+        });
     };
 }
+
+/// This type is used to describe whether data from a given type can be mutated when an instance is
+/// passed by value.
+pub const Mutability = enum {
+    /// This variant means that passing something by value can't modify what it holds. It should
+    /// be used when the relevant data is contained, not referenced. It sets `VarSelf` to `*Self`.
+    ///
+    /// ## Example
+    ///
+    /// ```zig
+    /// const Struct = struct {
+    ///     data: [32]Data,
+    /// };
+    /// ```
+    ///
+    /// Assuming that `Data` mutability is `.by_ref`, then `Struct` is also `.by_ref`, because
+    /// passing a `Struct` as argument can't change its data. In order to change its data, one must
+    /// pass a `*Struct` instead.
+    by_ref,
+    /// This variant means that passing something by value could modify what it holds. It should be
+    /// used when the relevant data is referenced, not contained. It sets `VarSelf` to `Self`.
+    ///
+    /// ## Example
+    ///
+    /// ```zig
+    /// const Struct = struct {
+    ///     data: []Data,
+    /// };
+    /// ```
+    ///
+    /// The `Struct` mutability is be `.by_val`, because passing a `Struct` as argument may change
+    /// its data.
+    by_val,
+};

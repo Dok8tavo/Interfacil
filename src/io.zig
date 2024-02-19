@@ -7,28 +7,12 @@ const ArrayList = std.ArrayList;
 
 /// # Readable
 ///
-/// TODO
-///
-/// ## Clauses
-///
-/// TODO
-///
-/// ## Declarations
-///
-/// TODO
-///
-/// ## Usage
-///
-/// TODO
-///
-/// ## Testing
-///
-/// TODO
+/// The `Readable` interface provide a similar interface than `std.io.GenericReader`.
 pub fn Readable(comptime Contractor: type, comptime clauses: type) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const VarSelf: type = contract.VarSelf;
     return struct {
+        const Self: type = contract.Self;
+        const VarSelf: type = contract.VarSelf;
         pub const AllocReadError = ReadError || Allocator.Error || error{StreamTooLong};
         pub const StreamError = ReadError || error{EndOfStream};
         pub const ReadError: type = contract.default(.ReadError, anyerror);
@@ -336,34 +320,19 @@ pub const Reader = struct {
 
     pub usingnamespace Readable(Reader, .{
         .read = readWrapper,
-        .mutation = contracts.Mutation.by_val,
+        .mutability = contracts.Mutability.by_val,
     });
 };
 
 /// # Writeable
 ///
-/// TODO
 ///
-/// ## Clauses
-///
-/// TODO
-///
-/// ## Declarations
-///
-/// TODO
-///
-/// ## Usage
-///
-/// TODO
-///
-/// ## Testing
-///
-/// TODO
+/// The `Writeable` interface provide a similar interface than `std.io.GenericWriter`.
 pub fn Writeable(comptime Contractor: type, comptime clauses: type) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const VarSelf: type = contract.VarSelf;
     return struct {
+        const Self: type = contract.Self;
+        const VarSelf: type = contract.VarSelf;
         pub const write = contract.require(.write, fn (VarSelf, []const u8) WriteError!usize);
         pub const WriteError: type = contract.default(.WriteError, anyerror);
 
@@ -440,7 +409,7 @@ pub const Writer = struct {
     }
 
     pub usingnamespace Writeable(Writer, .{
-        .mutation = contracts.Mutation.by_val,
+        .mutability = contracts.Mutability.by_val,
         .write = writeWrapper,
     });
 };

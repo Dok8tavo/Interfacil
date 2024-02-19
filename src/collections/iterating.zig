@@ -13,7 +13,7 @@ const comparison = @import("../comparison.zig");
 ///
 /// - `Self` is the type that will use the namespace returned by the interface. By default `Self`
 /// is the contractor.
-/// - `mutation` determine whether `VarSelf` is `*Self` or `Self`. By default `mutation` is
+/// - `mutability` determine whether `VarSelf` is `*Self` or `Self`. By default `mutability` is
 /// `by_ref`.
 /// - `Item` is the return type of the items the iterator will return, it's required.
 /// - `curr: fn (Self) ?Item` is a function that returns the current item, it doesn't consume it
@@ -287,7 +287,7 @@ pub fn Iterable(comptime Contractor: type, comptime clauses: anytype) type {
 
             // TODO: use `Result` for better detailed errors
             /// An iterable is isomorphic to a slice if its following items are equivalent to the
-            /// items of the slice. 
+            /// items of the slice.
             pub fn isSliceIsomorphic(self: VarSelf, slice: []const Item) bool {
                 return for (slice) |item| {
                     const curr_item = curr(contract.asSelf(self)) orelse break false;
@@ -330,7 +330,7 @@ pub fn Iterator(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Self, .{
-            .mutation = contracts.Mutation.by_val,
+            .mutability = contracts.Mutability.by_val,
             .Item = Item,
             .curr = currFn,
             .skip = skipFn,
@@ -362,7 +362,7 @@ pub fn Filter(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Self, .{
-            .mutation = contracts.Mutation.by_val,
+            .mutability = contracts.Mutability.by_val,
             .Item = Item,
             .skip = skipFn,
             .curr = currFn,
@@ -388,7 +388,7 @@ pub fn Map(comptime From: type, comptime To: type) type {
         }
 
         pub usingnamespace Iterable(Self, .{
-            .mutation = contracts.Mutation.by_val,
+            .mutability = contracts.Mutability.by_val,
             .Item = To,
             .skip = skipFn,
             .curr = currFn,
@@ -396,6 +396,7 @@ pub fn Map(comptime From: type, comptime To: type) type {
     };
 }
 
+// TODO
 pub fn Reduce(comptime Item: type) type {
     return struct {
         const Self = @This();
@@ -419,7 +420,7 @@ pub fn Reduce(comptime Item: type) type {
         }
 
         pub usingnamespace Iterable(Self, .{
-            .mutation = contracts.Mutation.by_val,
+            .mutability = contracts.Mutability.by_val,
             .Item = Item,
             .skip = skipFn,
             .curr = currFn,

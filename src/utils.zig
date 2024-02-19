@@ -9,6 +9,7 @@ const builtin = @import("builtin");
 ///
 /// ```zig
 /// const num: u64 = shouldReturnPair();
+/// /// This will panic in debug mode, reach `unreachable` in release modes.
 /// checkUB(num % 2 != 0,
 ///     \\The `shouldReturnPair` function should return a pair number, yet it returned {}!
 ///     \\Source: `{s}` at {s}:{}:{}
@@ -226,7 +227,7 @@ pub inline fn hot(value: anytype) @TypeOf(value) {
 ///
 ///         return error.Fail;
 ///     };
-/// 
+///
 ///     _ = pass;
 /// }
 /// ```
@@ -308,4 +309,49 @@ pub inline fn undef(comptime Undefined: type) Undefined {
 /// This function cast an opaque pointer to a typed pointer.
 pub inline fn cast(comptime T: type, ptr: *anyopaque) *T {
     return @alignCast(@ptrCast(ptr));
+}
+
+/// This function is a tool for making comptime-known slices easily.
+///
+/// ## Usage
+///
+/// ```zig
+/// const my_slice = slice(bool, .{true, false, true, true});
+/// ```
+pub inline fn slice(comptime T: type, comptime from: anytype) []const T {
+    const From = @TypeOf(from);
+    const info = @typeInfo(From);
+    switch (info) {
+        .Array => |Array| if (Array.child != T) compileError(
+            "The `{s}` type must be an array of `{s}`, not `{s}`!",
+            .{ @typeName(From), @typeName(T), @typeName(Array.child) },
+        ),
+        .Struct => |Struct| if (!Struct.is_tuple) compileError(
+            "The `{s}` type must be an array, slice or tuple, not a struct!",
+            .{@typeName(From)},
+        ) else for (Struct.fields) |field| if (field.type != T) compileError(
+            "All the members of `{s}` should be `{s}`, but the n°{s} is `{s}` instead",
+            .{ @typeName(From), @typeName(T), field.name, @typeName(field.type) },
+        ),
+        .Pointer => |Pointer| if (Pointer.size != .Slice) compileError(
+            "The `{s}` type must be an array, slice or tuple, not a pointer of size `.{s}`!",
+            .{ @typeName(From), @tagName(Pointer.size) },
+        ) else if (Pointer.child != T) compileError(
+            "The `{s}` type must be a slice of `{s}`, not of `{s}`!",
+            .{ @typeName(From), @typeName(T), @typeName(Pointer.child) },
+        ),
+        else => compileError(
+            "The `{s}` must be an array, slice or tuple, not a `.{s}`!",
+            .{ @typeName(From), @tagName(info) },
+        ),
+    }
+
+    comptime {
+        var s: []const T = &[_]T{};
+        for (from) |item| {
+            s = s ++ &[_]T{item};
+        }
+
+        return s;
+    }
 }

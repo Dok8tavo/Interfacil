@@ -9,17 +9,27 @@ const Iterator = collections.iterating.Iterator;
 /// The `Equivalent` interface relies on the existence of an equivalency function. A function
 /// of type `fn (T, T) bool` that's assumed to be:
 ///
-/// - reflexive: `∀x : eq(x, x)`
-/// - symmetric: `∀x, y : eq(x, y) == eq(y, x)`
-/// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
+/// - reflexive: `∀x: T, eq(x, x)`
+/// - symmetric: `∀x, y: T, eq(x, y) == eq(y, x)`
+/// - transitive: `∀x, y, z: T, (eq(x, y) and eq(y, z)) => eq(x, z)`
 ///
 /// ## Clauses
 ///
-/// TODO
+/// The only clause is the `.eq` clause that's a `fn (Self, Self) bool`.
 ///
 /// ## Declarations
 ///
-/// TODO
+/// ### The equivalency function: `eq`
+///
+/// The `Equivalent` interface entirely rely on this function being reflexive, symmetric and
+/// transitive. Therefore it's the main reason for using the testing module.
+///
+/// ### The universal quantifier: `allEq`
+/// ### The existential quatifier: `anyEq`
+/// ### Finding functions `firstEq`, `firstIndexEq`
+///
+/// These functions primary purpose isn't to be exposed. They're used internally by `allEq` and `anyEq`
+/// ### The filter: `filterEq`
 ///
 /// ## Usage
 ///
@@ -30,37 +40,71 @@ const Iterator = collections.iterating.Iterator;
 /// TODO
 pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const sample: []const Self = contract.sample;
-    return struct {
-        /// This function is the equivalency function from the `Equivalent` interface. It's assumed
-        /// to be:
-        /// - reflexive: `∀x : eq(x, x)`
-        /// - symmetric: `∀x, y : eq(x, y) == eq(y, x)`
-        /// - transitive: `∀x, y, z: (eq(x, y) and eq(y, z)) or !eq(x, z)`
-        pub const eq: fn (self: Self, other: Self) bool = contract.default(.eq, equalsFn(Self));
+    const sample = contract.sample;
+    // TODO: const ub_checked = contract.ub_checked;
 
+    return struct {
+        const Self: type = contract.Self;
+
+        /// This function is the _equivalency_ from the `Equivalent` interface. It's assumed to be:
+        /// - reflexive: `∀x: T, eq(x, x)`
+        /// - symmetric: `∀x, y: T, eq(x, y) == eq(y, x)`
+        /// - transitive: `∀x, y, z: T, (eq(x, y) and eq(y, z)) => eq(x, z)`
+        pub const eq: fn (Self, Self) bool = contract.default(.eq, equalsFn(Self));
+
+        /// This function is the _universal quantifier_ from the `Equivalent` interface.
+        ///
+        /// When `is_eq` is `true`, then it returns `true` when _**all**_ the items of the
+        /// `iterator` are equivalent to `self`.
+        /// - `∀x: iterator, eq(self, x)`
+        ///
+        /// When `is_eq` is `false`, then it returns `true` when _**none**_ of the items of the
+        /// `iterator` are equivalent to `self`.
+        /// - `∀x: iterator, !eq(self, x)`
+        ///
+        /// This function consumes the `iterator` argument.
         pub fn allEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
             return firstEq(self, !is_eq, iterator) == null;
         }
 
+        /// This function is the _existantial quantifier_ from the `Equivalent` interface.
+        ///
+        /// When `is_eq` is `true` then it returns `true` if one the items of the `iterator` is
+        /// equivalent to `self`.
+        /// - `∃x: iterator, eq(self, x)`
+        ///
+        /// When `is_eq` is `false` then it returns `true` if one of the items of the `iterator`
+        /// isn't equivalent to `self`.
+        /// - `∃x: iterator, !eq(self, x)`
+        ///
+        /// This function consumes the `iterator` argument.
         pub fn anyEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) bool {
             return firstEq(self, is_eq, iterator) != null;
         }
 
-        pub fn firstEqIndex(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?usize {
+        // TODO: doc
+        pub fn firstIndexEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?usize {
             var index: usize = 0;
             return while (iterator.next()) |item| : (index += 1) {
                 if (eq(self, item) == is_eq) break index;
             } else null;
         }
 
+        // TODO: doc
         pub fn firstEq(self: Self, comptime is_eq: bool, iterator: Iterator(Self)) ?Self {
             return while (iterator.next()) |item| {
                 if (eq(self, item) == is_eq) break item;
             } else null;
         }
 
+        /// This function returns an iterable that yields items from the `iterator` parameter.
+        /// These items are yielded in the same order as `iterator`.
+        ///
+        /// If `is_eq` is `true`, then the result filters out the items that aren't equivalent to
+        /// `self`.
+        ///
+        /// If `is_eq` is `false`, then the result filters out the items that are equivalent to
+        /// `self`.
         pub fn filterEq(
             self: Self,
             comptime is_eq: bool,
@@ -72,6 +116,39 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
             };
         }
 
+        /// This function returns `error.NonReflexive` if the set of items isn't reflexive.
+        pub fn testingReflexiveEq(s: []const Self) !void {
+            for (s) |x|
+                if (!eq(x, x))
+                    return error.NonReflexive;
+        }
+
+        /// This function returns `error.NonSymmetric` if the set of items isn't symmetric.
+        pub fn testingEqSymmetry(s: []const Self) !void {
+            for (s) |x| for (s) |y|
+                if (eq(x, y) != eq(y, x))
+                    return error.NonSymmetric;
+        }
+
+        /// This function returns `error.NonTransitive` if the set of items isn't transitive.
+        pub fn testTransitiveEq(s: []const Self) !void {
+            for (s) |x| for (s) |y| for (s) |z|
+                if (eq(x, y) and eq(y, z) and !eq(x, z))
+                    return error.NonTransitive;
+        }
+
+        test "Equivalent: Reflexivity" {
+            try testingReflexiveEq(sample);
+        }
+
+        test "Equivalent: Symmetry" {
+            try testingEqSymmetry(sample);
+        }
+
+        test "Equivalent: Transitivity" {
+            try testTransitiveEq(sample);
+        }
+
         fn FilterEqIterator(comptime is_eq: bool) type {
             return struct {
                 const Filtered = @This();
@@ -80,11 +157,9 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 iterator: Iterator(Self),
 
                 fn currFn(self: Filtered) ?Self {
-                    return while (self.iterator.curr()) |item| {
+                    return while (self.iterator.next()) |item| {
                         if (eq(self, item) == is_eq)
-                            break item
-                        else
-                            self.iterator.skip();
+                            break item;
                     } else null;
                 }
 
@@ -93,47 +168,13 @@ pub fn Equivalent(comptime Contractor: type, comptime clauses: anytype) type {
                 }
 
                 pub usingnamespace collections.iterating.Iterable(Filtered, .{
-                    .mutation = contracts.Mutation.by_val,
+                    .mutability = contracts.Mutability.by_val,
                     .curr = currFn,
                     .skip = skipFn,
                     .Item = Self,
                 });
             };
         }
-
-        /// This namespace contains functions and tests for the validity of the `Equivalent`
-        /// interface. The tests are using the `sample` clause on the testing functions.
-        pub const testing_equivalency = struct {
-            pub fn testingReflexivity(s: []const Self) !void {
-                for (s) |x|
-                    if (!eq(x, x))
-                        return error.NoReflexivity;
-            }
-
-            pub fn testingSymmetry(s: []const Self) !void {
-                for (s) |x| for (s) |y|
-                    if (eq(x, y) != eq(y, x))
-                        return error.NoSymmetry;
-            }
-
-            pub fn testingTransitivity(s: []const Self) !void {
-                for (s) |x| for (s) |y| for (s) |z|
-                    if (eq(x, y) and eq(y, z) and !eq(x, z))
-                        return error.NoTransitivity;
-            }
-
-            test "Equivalent: Reflexivity" {
-                try testingReflexivity(sample);
-            }
-
-            test "Equivalent: Symmetry" {
-                try testingSymmetry(sample);
-            }
-
-            test "Equivalent: Transitivity" {
-                try testingTransitivity(sample);
-            }
-        };
     };
 }
 
@@ -244,9 +285,9 @@ pub fn equalsFn(comptime T: type) fn (T, T) bool {
 /// TODO
 pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) type {
     const contract = contracts.Contract(Contractor, clauses);
-    const Self: type = contract.Self;
-    const sample: []const Self = contract.sample;
+    const sample = contract.sample;
     return struct {
+        const Self: type = contract.Self;
         /// This function is the partial equivalency function from the `PartialEquivalent`
         /// interface. It's assumed to be:
         /// - almost reflexive: `∀x : eq(x, x) === true`
@@ -332,15 +373,15 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 return partialEqualsFn(?bool)(a, b) orelse false;
             }
 
-            test "PartialEquivalent: Almost Reflexivity" {
+            test "Almost Reflexivity" {
                 try testingAlmostReflexivity(sample);
             }
 
-            test "PartialEquivalent: Almost Symmetry" {
+            test "Almost Symmetry" {
                 try testingAlmostSymmetry(sample);
             }
 
-            test "PartialEquivalent: Almost Transitivity" {
+            test "Almost Transitivity" {
                 try testingAlmostTransitivity(sample);
             }
         };
@@ -353,12 +394,9 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 iterator: Iterator(Self),
 
                 fn currFn(self: Filtered) ?PartialSelf {
-                    return while (self.iterator.curr()) |item| {
+                    return while (self.iterator.next()) |item| {
                         if (eq(self, item)) |e| {
-                            if (e == is_eq)
-                                break item
-                            else
-                                self.iterator.skip();
+                            if (e == is_eq) break PartialSelf{ .pass = item };
                         } else break PartialSelf{ .fail = item };
                     } else null;
                 }
@@ -368,7 +406,7 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
                 }
 
                 pub usingnamespace collections.iterating.Iterable(Filtered, .{
-                    .mutation = contracts.Mutation.by_val,
+                    .mutability = contracts.Mutability.by_val,
                     .curr = currFn,
                     .skip = skipFn,
                     .Item = Self,
@@ -376,6 +414,48 @@ pub fn PartialEquivalent(comptime Contractor: type, comptime clauses: anytype) t
             };
         }
     };
+}
+
+/// This function returns a partial equality function for float types.
+///
+/// ## Usage
+///
+/// ```zig
+/// const eq = floatPartialEqualsFn(f32, 0.10);
+/// const nan: f32 = ...;
+/// const inf: f32 = ...;
+/// assert(eq(0.0, 0.05).?);
+/// assert(!eq(0.0, 0.15).?);
+/// assert(eq(0.0, nan) == null);
+/// assert(eq(0.0, inf) == null);
+/// ```
+pub fn floatPartialEqualsFn(
+    comptime Float: type,
+    comptime precision: comptime_float,
+) fn (Float, Float) ?bool {
+    if (!std.math.isFinite(precision)) @compileError("Float precision must be a finite number!");
+    if (precision < 0) @compileError("Float precision must be a positive number!");
+    const info = @typeInfo(Float);
+    switch (info) {
+        .Float, .ComptimeFloat => {},
+        else => utils.compileError(
+            "`{s}` isn't a float type! It's a `.{s}` type!",
+            .{ @typeName(Float), @tagName(info) },
+        ),
+    }
+
+    return struct {
+        pub fn call(self: Float, other: Float) ?bool {
+            return if (!std.math.isFinite(self) or !std.math.isFinite(other))
+                null
+            else if (self < other)
+                other - self < precision
+            else if (other < self)
+                self - other < precision
+            else
+                true;
+        }
+    }.call;
 }
 
 /// This function returns a partial equality function. This partial equality is guaranteed to be:
@@ -398,7 +478,8 @@ pub fn partialEqualsFn(comptime T: type) fn (T, T) ?bool {
                 => a == b,
                 // Floating points are the exception: they shouldn't be compared using `==`.
                 .Float, .ComptimeFloat => utils.compileError(
-                    "The `{s}.anyPartialEquals` function shouldn't compare floating point `{s}`!",
+                    "The `{s}.anyPartialEquals` function shouldn't compare floating point " ++
+                        "`{s}`! Consider using `floatPartialEqualsFn`.",
                     .{ @typeName(T), @typeName(A) },
                 ),
                 // Void is a single-value type.
