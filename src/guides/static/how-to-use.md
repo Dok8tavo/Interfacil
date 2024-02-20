@@ -27,29 +27,38 @@ The second parameter of the interface is passed a struct literal. The fields of 
 
 ### `.Self`
 
-The self clause is defaulted to the contractor of the interface. You should only override it when the contractor and the type on which the interface is implemented are different.
+The self clause is defaulted to the contractor of the interface. You should only override it when the contractor and the implementor types are different.
 
-### `.mutation`
+### `.mutability`
 
-The mutation clause is either `.by_ref` or `.by_val`. Some types can be mutated from their value, because they don't hold their data, but a reference to it instead. In this case, you should set the mutation clause to `.by_val`. Then even when a method asks for a `VarSelf` parameter, it's actually just `Self`. Otherwise, you can just leave it and `VarSelf` will be `*Self`.
+The mutability clause is either `.by_ref` or `.by_val`. Some types can be mutated from their value, because they don't hold their data, but a reference to it instead. In this case, you should set the mutability clause to `.by_val`. Then even when a method asks for a `VarSelf` parameter, it's actually just `Self`. Otherwise, you can just leave it and `VarSelf` will be `*Self`.
 
-The mutation clause is a `interfacil.contracts.Mutation` instance, but it's implementation is made so that passing an enum literal will work just the same.
+The mutability clause is a `interfacil.contracts.Mutation` instance, but it's implementation is made so that passing an enum literal will work just the same.
 
 ### `.sample`
 
-In order to make meaningful tests available from the returned namespace, you must provide a sample of valid instances of your type. The sample clause takes a const slice to these instances and apply the tests on each of them, or their subsets.
+Some interfaces might provide some invariants. In order to do that, they return unit tests that will check whether or not those invariants hold. In order to do that, they need a set of valid instances on which they'll operate. These valid instances are passed through the sample clause, as a const slice. It's an empty slice by default.
 
-Another reason why you could want to give a sample clause is because there are some edge cases that might not respect some invariants.
+### `.ub_checked`
 
-### `.Item`
+The invariants could also be checked at runtime. If the `.ub_checked` clause is set to `true`, which is the default, breaking these invariant will reach unreachable. In debug mode, it'll simply panic with a meaningful error message.
 
-The collection interfaces of `interfacil` takes a mandatory item clause to determine the type of their content. Other collections should also ask for an item clause, except when there's a well established other name for it, like "key" and "value" for hashable interface.
+You might want to disable it in order to speed up debug and release safe builds.
 
-### A few functions
+### Example
 
-Interfaces are typically a set of utils that rely just on two or three basic functions. Like the `Readable` and the `Writeable` that are entirely build on `read` and `write` functions. The `Allocating` is based on the `alloc`, `resize` and `free` functions.
-
-These functions are typically wrappers around the vtable of the corresponding dynamic interface.
+```zig
+const AccessingType = struct {
+    ...
+    pub usingnamespace(ContractorType, .{
+        .Self = AccessingType,
+        .mutability = .by_ref,
+        .sample = utils.slice(.{instance1, instance2}),
+        .ub_checked = true,
+        ...
+    });
+};
+```
 
 ## Path Access
 
@@ -211,6 +220,8 @@ const Color = struct {
 
     pub const redeq = Equivalent(Color, .{
         .eq = hasSameRed,
+        // This sample will make sure that `hasSameRed` is reflexive, symmetric and transitive for
+        // these colors.
         .sample = utils.slice(Color, .{
             black, red,          
             green, yellow,

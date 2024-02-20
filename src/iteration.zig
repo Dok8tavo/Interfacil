@@ -1,7 +1,7 @@
 const std = @import("std");
-const utils = @import("../utils.zig");
-const contracts = @import("../contracts.zig");
-const comparison = @import("../comparison.zig");
+const utils = @import("utils.zig");
+const contracts = @import("contracts.zig");
+const comparison = @import("comparison.zig");
 
 /// # Iterable
 ///

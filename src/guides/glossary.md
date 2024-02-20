@@ -77,18 +77,22 @@ What's really different is _static interfaces_, the functions like `fn Allocatin
 
 These _static interfaces_ are different in that they aren't type-erased. Their advantages are:
 
-- they trivially support composition (a.k.a. using multiple interfaces on the same type at the same time),
+- they can be composed trivially,
 - they avoid a lot of code duplication,
 - _dynamic interfaces_ rely on the compiler optimization in order to be as fast as _static interfaces_
 
 Their disadvantages are:
 
 - they're not type-erased, so you might have to rely on `anytype` to use generics, which isn't the most convenient way to convey intent,
-- they're not type-erased, so you can't use them properly for dynamic libraries.
+- they're not type-erased, so you can't use precompile them in dynamic libraries for example, or to make a plugin system.
 
 ## Member
 
 A member can be a variant in the context of an `enum` or a `union`, or it can be a field in the context of a `struct`. Zig's terminology seems to use the word "field" instead when you look at `std.builtin.Type`, but I find it confusing.
+
+## Mutability
+
+Mutability is the ability for an instance to modify the data it holds. Zig's terminology tends to consider that data is only held by value, not reference. In `interfacil`, it's different. Some interface implementors hold their data by reference, they can be passed by value and modify the data still. 
 
 ## Namespace
 

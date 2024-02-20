@@ -1,5 +1,2 @@
-const interfacil = @import("interfacil.zig");
-const comparison = interfacil.comparison;
-const collections = interfacil.collections;
-
+const il = @import("interfacil.zig");
 const std = @import("std");
