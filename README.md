@@ -15,16 +15,13 @@ makes it better), and their doc comments. Props to the zls people!
 
 ## Currently implemented in Interfacil
 
-- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/memory.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/memory.zig) (for showcasing, do not use),
-- [`BidirectionIterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig) and [`BidirectionIterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig),
-- [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig),
-- [`Indexable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig) and [`Indexer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/indexing.zig),
-- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/iterating.zig),
-- [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig),
-- [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/equivalent.zig),
-- [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison/ordered.zig),
+- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/allocation.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/allocation.zig) (for showcasing, do not use),
+- [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
+- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
+- [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
+- [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
+- [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
 - [`Readable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
-- [`Sliceable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/slicing.zig) and [`Slicer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/collections/slicing.zig),
 - [`Writeable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Writer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
 
 ## How to use static interfaces
