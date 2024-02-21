@@ -434,21 +434,35 @@ pub fn Reduce(comptime Item: type) type {
     };
 }
 
-pub fn SliceIterator(comptime Item: type) type {
+pub fn SliceIterator(comptime T: type, comptime mutable: bool) type {
     return struct {
         const Self = @This();
+        const Slice = if (mutable) []T else []const T;
+        const Item = if (mutable) *T else T;
 
-        slice: []const Item,
+        slice: Slice,
         index: usize,
 
         fn currItem(self: Self) ?Item {
-            return if (self.index < self.slice.len) self.slice[self.index] else null;
+            if (self.slice.len <= self.index) return null;
+            return if (mutable) &self.slice[self.index] else self.slice[self.index];
         }
 
         fn skipItem(self: Self) void {
             self.index += 1;
         }
 
+        fn skipBackItem(self: *Self) void {
+            self.index -%= 1;
+        }
+
+        pub fn asSlicingIterator(self: Self) SlicingIterator(Item, mutable) {
+            return SlicingIterator(Item, mutable){
+                .slice = self.slice,
+                .index = self.index,
+            };
+        }
+
         pub usingnamespace Iterable(Self, .{
             .Item = Item,
             .curr = currItem,
@@ -457,24 +471,120 @@ pub fn SliceIterator(comptime Item: type) type {
     };
 }
 
-pub fn SlicingIterator(comptime Item: type) type {
+pub fn SlicingIterator(comptime Item: type, comptime mutable: bool) type {
     return struct {
         const Self = @This();
+        const Slice = if (mutable) []Item else []const Item;
 
-        slice: []Item,
+        slice: Slice,
+        index: usize,
 
-        fn currItem(self: Self) ?[]Item {
-            return if (0 < self.slice.len) self.slice[self.index..] else null;
+        fn currItem(self: Self) ?Slice {
+            if (self.slice.len <= self.index) return null;
+            return if (mutable) &self.slice[self.index..] else self.slice[self.index..];
         }
 
-        fn skipItem(self: Self) void {
-            self.slice = self.slice[1..];
+        fn skipItem(self: *Self) void {
+            self.index += 1;
         }
+
+        fn skipBackItem(self: *Self) void {
+            self.index -%= 1;
+        }
+
+        pub fn asSliceIterator(self: Self) SliceIterator(Item, mutable) {
+            return SliceIterator(Item, mutable){
+                .slice = self.slice,
+                .index = self.index,
+            };
+        }
+
+        pub const reversed = Iterable(Self, .{
+            .Item = Slice,
+            .curr = currItem,
+            .skip = skipBackItem,
+        });
 
         pub usingnamespace Iterable(Self, .{
-            .Item = Item,
+            .Item = Slice,
             .curr = currItem,
             .skip = skipItem,
         });
     };
 }
+
+pub const Utf8Codepoint: type = Codepoint: {
+    const Variant = std.builtin.Type.EnumField;
+    const max_u21 = std.math.maxInt(u21);
+    var variants = []const Variant{};
+    for (0..max_u21) |i| {
+        if (i == '_') {
+            variants = variants ++ &[_]Variant{Variant{
+                .name = "underscore",
+                .value = i,
+            }};
+            continue;
+        }
+        const codepoint: u21 = i;
+        const buffer: [4]u8 = undefined;
+        const size = std.unicode.utf8Encode(codepoint, &buffer) catch continue;
+        variants = variants ++ &[_]Variant{Variant{
+            .name = buffer[0..size],
+            .value = i,
+        }};
+    }
+
+    break :Codepoint @Type(std.builtin.Type{ .Enum = .{
+        .fields = variants,
+        .decls = &.{},
+        .is_exhaustive = true,
+        .tag_type = u21,
+    } });
+};
+
+pub const Utf8Iterator = struct {
+    const Self = @This();
+
+    inner: []const u8,
+    index: usize = 0,
+
+    pub const Error = error{ Utf8InvalidStartByte, Utf8WrongSize };
+
+    fn currentByte(self: Self) ?u8 {
+        return if (self.inner.len <= self.index) null else self.inner[self.index];
+    }
+
+    fn skipByte(self: *Self) void {
+        self.index += 1;
+    }
+
+    const byte_iteration = Iterable(Self, .{
+        .Item = u8,
+        .curr = currentByte,
+        .skip = skipByte,
+    });
+
+    fn currentCodepoint(self: Self) ?Error!Utf8Codepoint {
+        const first_byte = byte_iteration.curr(self) orelse return null;
+        const length = std.unicode.utf8ByteSequenceLength(first_byte) catch unreachable;
+        var buffer: [4]u8 = undefined;
+        for (0..length) |i| {
+            buffer[i] = byte_iteration.next(self) orelse unreachable;
+        }
+
+        const codepoint = std.unicode.utf8Decode(buffer[0..length]) catch unreachable;
+        return @as(Utf8Codepoint, @enumFromInt(codepoint));
+    }
+
+    fn skipCodepoint(self: *Self) void {
+        const first_byte = byte_iteration.curr(self) orelse return;
+        const length = std.unicode.utf8ByteSequenceLength(first_byte) catch unreachable;
+        for (0..length) |_| byte_iteration.skip(self);
+    }
+
+    pub usingnamespace Iterable(Utf8Iterator, .{
+        .Item = Utf8Codepoint,
+        .curr = currentCodepoint,
+        .skip = skipCodepoint,
+    });
+};
