@@ -32,8 +32,7 @@ pub fn build(b: *std.Build) !void {
     doc_step.dependOn(&doc.step);
 
     _ = b.addModule("interfacil", .{
-        .target = target,
-        .optimize = optimize,
+        .root_source_file = .{ .path = "src/interfacil.zig" },
     });
 
     //const examples_path = b.pathFromRoot("src/examples");
@@ -56,19 +55,11 @@ pub fn build(b: *std.Build) !void {
     //            .optimize = optimize,
     //            .root_source_file = .{ .path = example_path },
     //        });
-    //        addInterfacil(b, example, "interfacil");
+    //        example.root_module.addImport("interfacil", interfacil);
     //        const run_example = b.addRunArtifact(example);
     //        const example_step = b.step(example_name, "Run the example!");
     //        example_step.dependOn(&run_example.step);
     //    },
     //    else => continue,
     //};
-}
-
-pub fn addInterfacil(b: *std.Build, to: *std.Build.Step.Compile, name: []const u8) void {
-    const module = b.createModule(.{
-        .root_source_file = .{ .path = "src/interfacil.zig" },
-    });
-
-    to.root_module.addImport(name, module);
 }
