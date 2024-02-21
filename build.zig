@@ -31,6 +31,11 @@ pub fn build(b: *std.Build) !void {
     doc_step.dependOn(&lib.step);
     doc_step.dependOn(&doc.step);
 
+    _ = b.addModule("interfacil", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
     //const examples_path = b.pathFromRoot("src/examples");
     //var examples_dir = try std.fs.openDirAbsolute(examples_path, .{ .iterate = true });
     //defer examples_dir.close();
