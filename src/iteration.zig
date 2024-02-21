@@ -433,3 +433,48 @@ pub fn Reduce(comptime Item: type) type {
         }
     };
 }
+
+pub fn SliceIterator(comptime Item: type) type {
+    return struct {
+        const Self = @This();
+
+        slice: []const Item,
+        index: usize,
+
+        fn currItem(self: Self) ?Item {
+            return if (self.index < self.slice.len) self.slice[self.index] else null;
+        }
+
+        fn skipItem(self: Self) void {
+            self.index += 1;
+        }
+
+        pub usingnamespace Iterable(Self, .{
+            .Item = Item,
+            .curr = currItem,
+            .skip = skipItem,
+        });
+    };
+}
+
+pub fn SlicingIterator(comptime Item: type) type {
+    return struct {
+        const Self = @This();
+
+        slice: []Item,
+
+        fn currItem(self: Self) ?[]Item {
+            return if (0 < self.slice.len) self.slice[self.index..] else null;
+        }
+
+        fn skipItem(self: Self) void {
+            self.slice = self.slice[1..];
+        }
+
+        pub usingnamespace Iterable(Self, .{
+            .Item = Item,
+            .curr = currItem,
+            .skip = skipItem,
+        });
+    };
+}
