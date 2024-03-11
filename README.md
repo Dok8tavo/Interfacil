@@ -10,7 +10,61 @@ Here are a few projects with similar purpose:
 - [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
-These interfaces work well enough with zls. Most of the time it can figure out the types you'r interested in, and the doc comments. Give some love to the zls people!
+ZLS works well enough with `interfacil`, it can figure out the declarations and their docs. Unfortunatly, as of today, it still doesn't do well with return types as those are generics and go through a little bit of comptime computation. You might need to use a few type annotations here and there to get it working properly.
+
+## Static interfaces
+
+Interfacil's static interfaces designate a consistent set of declarations that a type must provide. One could also call them "mixin"s as they effectively extends the set of declerations available from the type. However, they still must be declared from within the type, they can't be declared afterwards. Here's how one could implement a static interface:
+
+```zig
+const MyIterableType = struct {
+    // this is just an example of fields, this could be anything really
+    field: MyField,
+    index: usize = 0,
+
+    // Here's the fun part: the interface `Iterable` is a function that generates a namespace in
+    // your stead, by passing the type and the necessary declarations. And makes it available from
+    // the type with the help of `usingnamespace`.
+    pub usingnamespace Iterable(MyIterableType, struct {
+        pub const Item = MyItem;
+        pub fn next(self: *MyIterableType) ?Item {
+            if (self.field.len <= self.index) return null;
+            defer self.index += 1;
+            return self.field.getMyItem(self.index);
+        }
+    // There's a defined set of options, that can come handy when implementing a static interface.
+    }, .{});
+};
+
+fn someFunction() void {
+    ...
+    // Now you can use the `next` function you've defined from your type
+    const my_item = my_iterable.next() orelse return;
+    ...
+    // But you can also filter them
+    var filtered = my_iterable.filter(isValidMyItem);
+    const next_valid_item = filtered.next() orelse return;
+    ...
+    // Or map them to another type
+    var mapped = my_iterable.map(myOtherItemFromMyItem);
+    const my_other_item = mapped.next() orelse return;
+    ...
+    // Or both
+    var mapped_and_filtered = filtered.map(myOtherItemFromMyItem);
+    const my_other_item_from_my_valid_item = mapped_and_filtered.next() orelse return;
+    ...
+    // You can also reduce them
+    var reduced = my_iterable.reduce(sumMyItems);
+    const sum = reduced.next() orelse return;
+    const sum_plus_one = reduced.next() orelse return;
+    const sum_plus_two = reduced.next() orelse return;
+    ...
+}
+```
+
+## Dynamic interfaces
+
+Dynamic interfaces bundle a type-erased pointer to a type implementing the equivalent static interface, with a corresponding virtual table, a set of function pointers that are used internally. They're a simple type.
 
 ## Quick Overview
 
@@ -38,178 +92,27 @@ The `MultIterator` is an iterable type that chains multiple iterators together. 
 
 ### No allocations
 
-All of the iteration facility re
-
-## How to use static interfaces
+Iteration is completly independent of any kind of memory allocation that could happen under the hood. If your iterable requires allocation or another operation that could fail, you can define an appropriate error union as the returned items.
 
 ```zig
-// The accessor is the type from which you can access the interface's return.
-const Accessor = struct {
+const MyIterable = struct {
     ...
 
-    // The following line declares a set of declarations that'll be useable from the Accessor.
-    pub usingnamespace interfacil.Interface(
-        // The contractor is the type that must fill the interface's `contract`. This is useful for
-        // meaningful compile error messages! In practice, it's almost always the Accessor.
-        Contractor,
-        // The clauses of the interface's contract are filled by passing an anonymous struct as the
-        // second parameter. Most interfaces require at least one clause because there's no clear
-        // default from just knowing the contractor.
-        .{ .clause = some_value },
-    );
-};
+    // check whether an error occurs during the iteration
+    pub fn noErrors(self: *MyIterable) bool {
+        return while (self.next()) |item| {
+            const actual_item = item catch break false;
+            _ = actual_item;
+        } else true;
+    }
 
-// Now, from the accessor, you can use the declarations of the namespace returned by the interface.
-const zero = Accessor.zero;
-const one = Accessor.one;
-const two = Accessor.add(zero, one);
-
-// If the contractor and the accessor are the same type, you can even use the method syntax.
-const three= two.add(one);
-```
-
-## How to make static interfaces
-
-```zig
-pub fn MyInterface(comptime Contractor: type, comptime clauses: anytype) type {
-    return struct {
-        // The contract will make sure the passed clauses are valid.
-        const contract = interfacil.Contract(Contractor, clauses);
-
-        // You can now require a clause from the contractor by using the contract.
-        const required = contract.require(
-            // This is the name of the field where the contract should look for the clause.
-            .clause_name,
-            // This is the type of the field ...
-            SomeType,
-        );
-
-        // You can also use a default.
-        const has_clause = contract.default(
-            // Usually, it's better to use the same name for both the clause and the declaration.
-            .has_clause,
-            // The contract will infer what should be the type of the clause.
-            false,
-        );
-
-        // All the public declarations are those the accessor will have access to.
-        pub const pi = 3.14159;
-
-        // You can make it so that the result depends on a clause.
-        pub const message = if (has_clause) "I love you!" else "You piece of crap!";
-
-        // You can define new functions, or methods, or anything really.
-        pub fn method(self: *Contractor) void {
+    pub usingnamespace Iterable(MyIterable, struct {
+        pub const Item = error{OutOfMemory}!ActualItem;
+        pub fn next(self: *MyIterable) ?Item {
             ...
         }
-
-        // You can also use other interfaces for better composition.
-        pub usingnamespace interfacil.OtherInterface(Contractor, clauses);
-    };
-}
-```
-
-## How to use dynamic interfaces
-
-If you don't really know what kind of `Iterable` will be passed to your function, and you can't really use `anytype` (or don't want to), you can just pass an `Iterator(Item)` instead. Here you go:
-
-```zig
-fn someFunction(iterable: anytype) void {
-    // here there can be no autocompletion from zls, because the type of `iterable` will be 
-    // resolved at each call of `someFunction`.
-    ...
+    }, .{});
 }
 
-// becomes:
-fn someFunction(iterator: Iterator(Item)) void {
-    // here there can be autocompletion from zls, because it's smart enough to figure what methods
-    // will have a type resulting from `Iterator`
-    ...
-}
 
-// and at call site:
-someFunction(iterable);
-
-// becomes:
-someFunction(iterable.asIterator());
 ```
-
-If the static interface has an `asDynamic` method, it's the easiest thing in the world to make an instance of dynamic interface.
-
-You have to be cautious though: a dynamic interface must hold a reference to its context, and it's only valid while this context is valid.
-
-
-## How to make dynamic interfaces
-
-We already have dynamic interfaces at home, the [`std.mem.Allocator`](https://github.com/ziglang/zig/blob/master/lib/std/mem/Allocator.zig) is the perfect example. They hold a pointer to something, and a virtual table (a bunch of pointers to functions):
-
-```zig
-ptr: *anyopaque,
-vtable: struct {
-    alloc: *const fn (
-        ctx: *anyopaque,
-        len: usize,
-        ptr_align: u8,
-        ret_addr: usize,
-    ) ?[*]u8,
-
-    resize: *const fn (
-        ctx: *anyopaque,
-        buf: []u8,
-        buf_align: u8,
-        new_len: usize,
-        ret_addr: usize,
-    ) bool,
-
-    free: *const fn (
-        ctx: *anyopaque,
-        buf: []u8, buf_align: u8,
-        ret_addr: usize,
-    ) void,
-},
-```
-
-And then there's a bunch of functions that internally use the vtable and the pointer. 
-
-Now, dynamic interfaces in Interfacil aren't much different. What's different is that you can use static interfaces to define them, take a look at the [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) interface:
-
-```zig
-pub const Reader = struct {
-    ctx: *anyopaque,
-    vtable: struct {
-        read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
-    },
-
-    fn readFn(self: Reader, buffer: []u8) anyerror!usize {
-        return self.vtable(self.ctx, buffer);
-    }
-
-    pub usingnamespace Readable(Reader, .{ .read = readFn, .Self = Reader });
-};
-```
-
-And this is all there is to it! You just need to write wrappers around the vtable's functions, and pass them to the static interface that'll define all the methods for you! And since composing static interfaces is the easiest thing in the world, it's also quite easy to compose dynamic ones:
-
-```zig
-const ReaderAndWriter = struct {
-    ctx: *anyopaque,
-    vtable: struct {
-        read: *const fn (self: *anyopaque, buffer: []u8) anyerror!usize,
-        write: *const fn (self: *anyopaque, bytes: []const u8) anyerror!usize,
-    }
-
-    fn readFn(self: ReaderAndWriter, buffer: []u8) anyerror!usize {
-        return self.vtable(self.ctx, buffer);
-    }
-
-    fn writeFn(self: ReaderAndWriter, bytes: []const u8) anyerror!usize {
-        return self.vtable(self.ctx, bytes);
-    }
-
-    // Boom! Composition!
-    pub usingnamespace Readable(ReaderAndWriter, .{ .read = readFn, .Self = ReaderAndWriter });
-    pub usingnamespace Writeable(ReaderAndWriter, .{ .read = readFn, .Self = ReaderAndWriter });
-}
-```
-
-If you got access to the corresponding static interface, you should also add a `asDynamic` method to it. This way, any function that takes in the dynamic interface can be called and be passed a `with_static.asDynamic()` argument. For example, the `Readable` interface has a `fn asReader(self: *Self) Reader` method. The `Writeable` interface has a `fn asWriter(self: *Self) Writer` method. The `Allocating` has a `fn asAllocator(self: *Self) Allocator` method, and so on.
