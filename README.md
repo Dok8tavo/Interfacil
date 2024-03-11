@@ -10,19 +10,35 @@ Here are a few projects with similar purpose:
 - [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
-These interfaces work well with zls, you can see their type (though sometimes a type annotation 
-makes it better), and their doc comments. Props to the zls people!
+These interfaces work well enough with zls. Most of the time it can figure out the types you'r interested in, and the doc comments. Give some love to the zls people!
 
-## Currently implemented in Interfacil
+## Quick Overview
 
-- [`Allocating`](https://github.com/Dok8tavo/Interfacil/blob/main/src/allocation.zig) and [`Allocator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/allocation.zig) (for showcasing, do not use),
-- [`Equivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
-- [`Iterable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig) and [`Iterator`](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig),
-- [`Ordered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
-- [`PartialEquivalent`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
-- [`PartialOrdered`](https://github.com/Dok8tavo/Interfacil/blob/main/src/comparison.zig),
-- [`Readable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Reader`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
-- [`Writeable`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig) and [`Writer`](https://github.com/Dok8tavo/Interfacil/blob/main/src/io.zig),
+For now, the main implementations of interfaces are those related to [iterators](https://github.com/Dok8tavo/Interfacil/blob/0.2.0/src/iteration.zig):
+
+### `Iteratable`
+
+An iteratable type is a type with a `next` function that returns an optional item (`null` is when it has reached its end, when it has been consumed entirely).
+
+Iterable types can be abstracted into an `Iterator` allowing to make a ton of things in a type independent way.
+
+Iterable types also automatically provide the `reduce`, `filter` and `map` higher order functions.
+
+### `Peekable`
+
+A peekeable type is a type that inherit from an iterable, meaning that it can absolutly be used exactly like an iterable. But it also has a `peek` function that basically does the same as `next` but without consuming the item, and without needing a mutable reference to self.
+
+### `SlicePeeker`
+
+A `SlicePeeker` is a peekable type that return sub-slices of a given slice. One can also use the `asItemPeeker` in order to iterate over the items instead of the sub-slices.
+
+### `MultIterator`, `MultPeeker`
+
+The `MultIterator` is an iterable type that chains multiple iterators together. The `MultPeeker` obviously does the same, but as a peekable type, for peekers instead.
+
+### No allocations
+
+All of the iteration facility re
 
 ## How to use static interfaces
 

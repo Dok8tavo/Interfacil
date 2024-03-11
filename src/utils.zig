@@ -1,28 +1,24 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-/// This function allows the use custom undefined behaviour. If `is_ub` is true, this function will
+/// This function allows enables custom undefined behaviour. If `is_ub` is true, this function will
 /// reach `unreachable`. In debug build though, it'll panic with the formatted error message. See
-/// `std.fmt.format` for documentation about the formatting rules.
+/// `std.fmt.format` for documentation about the formatting rules. If it's run during compile-time
+/// it will trigger a compile error of the same format instead.
 ///
 /// ## Usage
 ///
 /// ```zig
 /// const num: u64 = shouldReturnPair();
+/// const src = @src();
 /// /// This will panic in debug mode, reach `unreachable` in release modes.
-/// checkUB(num % 2 != 0,
-///     \\The `shouldReturnPair` function should return a pair number, yet it returned {}!
+/// checkUB(num % 2 != 0, \\The `shouldReturnPair` function should return a pair number, yet it returned {}!
 ///     \\Source: `{s}` at {s}:{}:{}
 ///     \\
-/// , .{
-///     num,
-///     @src().fn_name,
-///     @src().file,
-///     @src().line,
-///     @src().column,
-/// });
+/// , .{ num, src.fn_name, src.file, src.line, src.column });
 /// ```
 pub inline fn checkUB(is_ub: bool, comptime fmt: []const u8, args: anytype) void {
+    if (@inComptime() and is_ub) compileError(fmt, args);
     if (is_ub) cold(
         if (builtin.mode != .Debug)
             unreachable
@@ -60,6 +56,8 @@ pub inline fn checkUB(is_ub: bool, comptime fmt: []const u8, args: anytype) void
 ///     in_between => normal(),
 /// }
 /// ```
+///
+// ? does it even work ?
 pub inline fn cold(value: anytype) @TypeOf(value) {
     @setCold(true);
     return value;
@@ -85,6 +83,8 @@ pub inline fn compileError(comptime fmt: []const u8, comptime args: anytype) nor
 ///     ...
 /// }
 /// ```
+///
+// ! Only available in debug builds
 pub inline fn dbg(value: anytype) @TypeOf(value) {
     std.log.debug("dbg({any}: {s})\n", .{
         value,
@@ -96,9 +96,9 @@ pub inline fn dbg(value: anytype) @TypeOf(value) {
 /// Enum literals should be preferred over strings when using metaprogramming. A string represents
 /// text, something that's supposed to be printed somewhere. For representing code, especially
 /// fields and declarations whose access syntax ressembles enum literals, it's just ideal. Let's
-/// not use strings as a metaprogramming interface. What are we? C macros? Come on!
+/// not use strings as a metaprogramming interface. Come on! Please `#undef C_MACROS`!
 ///
-/// Using strings is unavoidable when using the following functions:
+/// Using strings is unavoidable when directly calling the following functions:
 /// - `@hasDecl(comptime Container: type, comptime name: []const u8) bool`,
 /// - `@hasField(comptime Container: type, comptime name: []const u8) bool`,
 /// - `@field(lhs: anytype, comptime name: []const u8) ...`,
@@ -138,6 +138,12 @@ pub inline fn enumLiteral(comptime name: []const u8) EnumLiteral {
     return @as(EnumLiteral, @field(undef(WithNameAsField), name));
 }
 
+test enumLiteral {
+    try std.testing.expectEqual(.enum_literal, enumLiteral("enum_literal"));
+    try std.testing.expectEqual(.tag, enumLiteral("tag"));
+    try std.testing.expectEqual(.@"∀utf8", enumLiteral("∀utf8"));
+}
+
 /// The `cold` and `hot` functions are used for helping the compiler figure out what's more likely
 /// to happen in a control flow. Which return statement will return, which branch will be executed,
 /// which break will occur, etc. It might not be useful at all, but it could maybe, perhaps improve
@@ -166,6 +172,8 @@ pub inline fn enumLiteral(comptime name: []const u8) EnumLiteral {
 ///     in_between => normal(),
 /// }
 /// ```
+///
+// ? does it even work ?
 pub inline fn hot(value: anytype) @TypeOf(value) {
     @setCold(false);
     return value;
@@ -282,6 +290,15 @@ pub fn Result(comptime P: type, comptime F: type) type {
                     return null;
                 }),
             };
+        }
+
+        // This function asserts that the `Result` is successful.
+        // During compile time,
+        pub fn assert(self: Self, comptime fmt: []const u8, args: anytype) Pass {
+            if (self == .pass) return hot(self.pass);
+            checkUB(self == .pass, fmt, args);
+            if (@inComptime()) compileError(fmt, args);
+            std.debug.panic(fmt, args);
         }
     };
 }
