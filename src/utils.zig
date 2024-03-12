@@ -84,64 +84,13 @@ pub inline fn compileError(comptime fmt: []const u8, comptime args: anytype) nor
 /// }
 /// ```
 ///
-// ! Only available in debug builds
+/// ! Only available in debug builds !
 pub inline fn dbg(value: anytype) @TypeOf(value) {
     std.log.debug("dbg({any}: {s})\n", .{
         value,
         @typeName(@TypeOf(value)),
     });
     return todo(value);
-}
-
-/// Enum literals should be preferred over strings when using metaprogramming. A string represents
-/// text, something that's supposed to be printed somewhere. For representing code, especially
-/// fields and declarations whose access syntax ressembles enum literals, it's just ideal. Let's
-/// not use strings as a metaprogramming interface. Come on! Please `#undef C_MACROS`!
-///
-/// Using strings is unavoidable when directly calling the following functions:
-/// - `@hasDecl(comptime Container: type, comptime name: []const u8) bool`,
-/// - `@hasField(comptime Container: type, comptime name: []const u8) bool`,
-/// - `@field(lhs: anytype, comptime name: []const u8) ...`,
-/// - `@typeName(comptime T: type) []const u8`,
-/// - `@errorName(err: anyerror) []const u8`,
-/// - `@tagName(tag: anytype) []const u8`,
-///
-/// But those returning strings are actually mostly meant for being printed at some point. So it
-/// makes sense to use strings. The others should be used when writing metaprogramming, not when
-/// using it. For this, `EnumLiteral` is a better fit, just like struct literals actually.
-///
-/// Seeing `EnumLiteral` in a function signature is a little cleaner and prettier than some dirty
-/// `@TypeOf(.enum_literal)`.
-pub const EnumLiteral = @TypeOf(.enum_literal);
-
-/// This function converts a string into an enum literal.
-///
-/// If we're using enum literals instead of strings when using metaprogramming, a little tooling
-/// can be appreciated for interacting with builtin functions.
-///
-/// ## Usage
-/// ```zig
-/// const variant_as_enum_literal = enumLiteral(@tagName(union_instance));
-/// const type_as_enum_literal = enumLiteral(@typeName(Type));
-/// const error_as_enum_literal = enumLiteral(@errorName(err));
-/// ```
-pub inline fn enumLiteral(comptime name: []const u8) EnumLiteral {
-    const WithNameAsField = @Type(.{ .Enum = std.builtin.Type.Enum{
-        .decls = &.{},
-        .is_exhaustive = true,
-        .tag_type = u1,
-        .fields = &[_]std.builtin.Type.EnumField{.{
-            .name = name,
-            .value = 0,
-        }},
-    } });
-    return @as(EnumLiteral, @field(undef(WithNameAsField), name));
-}
-
-test enumLiteral {
-    try std.testing.expectEqual(.enum_literal, enumLiteral("enum_literal"));
-    try std.testing.expectEqual(.tag, enumLiteral("tag"));
-    try std.testing.expectEqual(.@"∀utf8", enumLiteral("∀utf8"));
 }
 
 /// The `cold` and `hot` functions are used for helping the compiler figure out what's more likely
@@ -324,11 +273,16 @@ pub inline fn undef(comptime Undefined: type) Undefined {
 }
 
 /// This function cast an opaque pointer to a typed pointer.
+/// It's comes handy when implementing dynamic interfaces.
 pub inline fn cast(comptime T: type, ptr: *anyopaque) *T {
     return @alignCast(@ptrCast(ptr));
 }
 
 /// This function is a tool for making comptime-known slices easily.
+/// It comes handy when a static interface requires a slice.
+///
+/// ## Warning
+/// It will be deprecated when automatic coercion is supported by `contracts.Contract`.
 ///
 /// ## Usage
 ///
@@ -372,3 +326,5 @@ pub inline fn slice(comptime T: type, comptime from: anytype) []const T {
         return s;
     }
 }
+
+pub const EnumLiteral = @TypeOf(.enum_literal);
