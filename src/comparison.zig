@@ -20,7 +20,26 @@ pub fn Equivalent(
 
         pub fn eq(self: Self, other: Self) bool {
             const function = contract.default(.eq, equalsWithOptionsFn(Self));
-            return function(self, other);
+            const self_eq_other = function(self, other);
+            const other_eq_self = function(other, self);
+            const self_eq_self = function(self, self);
+            const other_eq_other = function(other, other);
+            utils.checkUB(
+                ub_checked and is_symmetric and self_eq_other == other_eq_self,
+                "UB: {s} isn't symmetric: `({any} == {any}) != ({any} == {any})`",
+                .{ contract.name, self, other, other, self },
+            );
+            utils.checkUB(
+                ub_checked and is_reflexive and self_eq_self,
+                "UB: {s} isn't reflexive: `{any} != {any}`",
+                .{ contract.name, self, self },
+            );
+            utils.checkUB(
+                ub_checked and is_reflexive and other_eq_other,
+                "UB: {s} isn't reflexive: `{any} != {any}`",
+                .{ contract.name, other, other },
+            );
+            return self_eq_other;
         }
 
         pub fn allEq(self: Self, is_eq: bool, iterable: anytype) bool {
@@ -78,14 +97,14 @@ pub fn Equivalent(
             };
         }
 
-        pub fn isReflexive(s: []const Self) !void {
+        pub fn isReflexive(s: []const Self) bool {
             return for (s) |x| {
                 if (!eq(x, x))
                     break false;
             } else false;
         }
 
-        pub fn isSymmetric(s: []const Self) !void {
+        pub fn isSymmetric(s: []const Self) bool {
             return for (s) |x| {
                 for (s) |y|
                     if (eq(x, y) != eq(y, x))
@@ -93,7 +112,7 @@ pub fn Equivalent(
             } else true;
         }
 
-        pub fn isTransitive(s: []const Self) !void {
+        pub fn isTransitive(s: []const Self) bool {
             return for (s) |x| {
                 for (s) |y| for (s) |z|
                     if (eq(x, y) and eq(y, z) and !eq(x, z))
