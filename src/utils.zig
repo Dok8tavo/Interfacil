@@ -63,7 +63,7 @@ pub inline fn cold(value: anytype) @TypeOf(value) {
     return value;
 }
 
-/// This function is just a formatted version of `@compileError`. See `@import("std").fmt.format` for
+/// This function is just a formatted version of `@compileError`. See `std.fmt.format` for
 /// documentation about the formatting rules.
 pub inline fn compileError(comptime fmt: []const u8, comptime args: anytype) noreturn {
     @compileError(std.fmt.comptimePrint(fmt, args));
@@ -252,6 +252,36 @@ pub fn Result(comptime P: type, comptime F: type) type {
     };
 }
 
+test Result {
+    const Closure = struct {
+        pub const ParseError = struct {
+            non_cifer: u8,
+            index: usize,
+        };
+        pub const Parse = Result(u32, ParseError);
+        pub fn parseInt(str: []const u8) Parse {
+            var parsed: u32 = 0;
+            return for (str, 0..) |c, i| switch (c) {
+                '0'...'9' => {
+                    parsed *= 10;
+                    parsed += c - '0';
+                },
+                '_' => {},
+                else => break Parse{ .fail = .{ .non_cifer = c, .index = i } },
+            } else Parse{ .pass = parsed };
+        }
+    };
+
+    const good_result = Closure.parseInt("12_345");
+    try std.testing.expectEqualDeep(@as(?u32, 12_345), good_result.get());
+
+    const bad_result = Closure.parseInt("12_E45");
+    var fail = undef(Closure.ParseError);
+    const pass = bad_result.nab(&fail) orelse 0;
+    try std.testing.expectEqual(pass, 0);
+    try std.testing.expectEqual(fail, Closure.ParseError{ .non_cifer = 'E', .index = 3 });
+}
+
 /// This function is here to provide a default value, when its computing isn't implemented yet. If
 /// used in release build, it'll trigger a compile error and display the given error message. See
 /// `std.fmt.format` for documentation about the formatting rules.
@@ -290,34 +320,38 @@ pub inline fn cast(comptime T: type, ptr: *anyopaque) *T {
 /// const my_slice = slice(bool, .{true, false, true, true});
 /// ```
 pub inline fn slice(comptime T: type, comptime from: anytype) []const T {
-    const From = @TypeOf(from);
-    const info = @typeInfo(From);
-    switch (info) {
-        .Array => |Array| if (Array.child != T) compileError(
-            "The `{s}` type must be an array of `{s}`, not `{s}`!",
-            .{ @typeName(From), @typeName(T), @typeName(Array.child) },
-        ),
-        .Struct => |Struct| if (!Struct.is_tuple) compileError(
-            "The `{s}` type must be an array, slice or tuple, not a struct!",
-            .{@typeName(From)},
-        ) else for (Struct.fields) |field| if (field.type != T) compileError(
-            "All the members of `{s}` should be `{s}`, but the n°{s} is `{s}` instead",
-            .{ @typeName(From), @typeName(T), field.name, @typeName(field.type) },
-        ),
-        .Pointer => |Pointer| if (Pointer.size != .Slice) compileError(
-            "The `{s}` type must be an array, slice or tuple, not a pointer of size `.{s}`!",
-            .{ @typeName(From), @tagName(Pointer.size) },
-        ) else if (Pointer.child != T) compileError(
-            "The `{s}` type must be a slice of `{s}`, not of `{s}`!",
-            .{ @typeName(From), @typeName(T), @typeName(Pointer.child) },
-        ),
-        else => compileError(
-            "The `{s}` must be an array, slice or tuple, not a `.{s}`!",
-            .{ @typeName(From), @tagName(info) },
-        ),
-    }
-
     comptime {
+        const From = @TypeOf(from);
+        const info = @typeInfo(From);
+        switch (info) {
+            .Array => |Array| if (Array.child != T) compileError(
+                "The `{s}` type must be an array of `{s}`, not `{s}`!",
+                .{ @typeName(From), @typeName(T), @typeName(Array.child) },
+            ),
+            .Struct => |Struct| if (!Struct.is_tuple) compileError(
+                "The `{s}` type must be an array, slice or tuple, not a struct!",
+                .{@typeName(From)},
+            ) else for (Struct.fields) |field| if (field.type != T) compileError(
+                "All the members of `{s}` should be `{s}`, but the n°{s} is `{s}` instead",
+                .{ @typeName(From), @typeName(T), field.name, @typeName(field.type) },
+            ),
+            .Pointer => |Pointer| switch (Pointer.size) {
+                .Slice => if (Pointer.child != T) compileError(
+                    "The `{s}` type must be a slice of `{s}`, not `{s}`!",
+                    .{ @typeName(From), @typeName(T), @typeName(Pointer.child) },
+                ),
+                .One => return slice(T, from.*),
+                else => if (Pointer.sentinel == null) compileError(
+                    "The `{s}` type should have a known size or a sentinel!",
+                    .{@typeName(From)},
+                ),
+            },
+            else => compileError(
+                "The `{s}` must be an array, slice or tuple, not a `.{s}`!",
+                .{ @typeName(From), @tagName(info) },
+            ),
+        }
+
         var s: []const T = &[_]T{};
         for (from) |item| {
             s = s ++ &[_]T{item};
@@ -325,6 +359,22 @@ pub inline fn slice(comptime T: type, comptime from: anytype) []const T {
 
         return s;
     }
+}
+
+test slice {
+    const my_slice = slice(bool, .{ true, false, true, true });
+    try std.testing.expectEqual(@TypeOf(my_slice), []const bool);
+    try std.testing.expectEqual(my_slice.len, 4);
+    try std.testing.expectEqual(my_slice[0], true);
+    try std.testing.expectEqual(my_slice[1], false);
+    try std.testing.expectEqual(my_slice[2], true);
+    try std.testing.expectEqual(my_slice[3], true);
+
+    const string = "This is a string";
+    const another_slice = slice(u8, string);
+    try std.testing.expectEqual(@TypeOf(another_slice), []const u8);
+    try std.testing.expectEqual(@TypeOf(string), *const [string.len:0]u8);
+    try std.testing.expectEqualStrings(string, another_slice);
 }
 
 pub const EnumLiteral = @TypeOf(.enum_literal);

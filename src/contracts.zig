@@ -64,24 +64,25 @@ pub fn Contract(
             return coerced(untyped, Declaration);
         }
 
-        fn coerced(comptime to_coerce: anytype, comptime CoerceTo: type) CoerceTo {
-            const ToCoerce: type = @TypeOf(to_coerce);
-            return utils.todo(
-                if (ToCoerce == CoerceTo) to_coerce else utils.compileError(
-                    "The `{s}` interface requires that `{s}` coerces to `{s}`, but it's a `{s}`!",
-                    .{ name, @tagName(to_coerce), @typeName(CoerceTo), @typeName(ToCoerce) },
-                ),
-                "Allow smart and intelligent coercion for the users plz, would be great",
-                .{},
-            );
-        }
-
-        fn getUntyped(comptime declaration: EnumLiteral) ?Type(declaration) {
+        pub fn getUntyped(comptime declaration: EnumLiteral) ?Type(declaration) {
             const declaration_name = @tagName(declaration);
             return if (@hasDecl(Provider, declaration_name))
                 @field(Provider, declaration_name)
             else
                 null;
+        }
+
+        fn coerced(comptime to_coerce: anytype, comptime CoerceTo: type) CoerceTo {
+            const ToCoerce: type = @TypeOf(to_coerce);
+            if (?ToCoerce == CoerceTo) return to_coerce;
+            return utils.todo(
+                if (ToCoerce == CoerceTo) to_coerce else utils.compileError(
+                    "The `{s}` interface requires that a `{s}` coerces to `{s}`!",
+                    .{ name, @typeName(ToCoerce), @typeName(CoerceTo) },
+                ),
+                "Allow smart and intelligent coercion for the users plz, would be great",
+                .{},
+            );
         }
 
         fn Type(comptime declaration: EnumLiteral) type {
