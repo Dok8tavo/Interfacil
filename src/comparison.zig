@@ -102,19 +102,19 @@ pub fn Equivalent(
         }
 
         const reflexivity = struct {
-            test "Equivalent: Reflexivity" {
+            test isReflexive {
                 try std.testing.expect(isReflexive(sample));
             }
         };
 
         const symmetry = struct {
-            test "Equivalent: Symmetry" {
+            test isSymmetric {
                 try std.testing.expect(isSymmetric(sample));
             }
         };
 
         const transitivity = struct {
-            test "Equivalent: Transitivity" {
+            test isTransitive {
                 try std.testing.expect(isTransitive(sample));
             }
         };
