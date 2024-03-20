@@ -1,0 +1,15 @@
+let fibonacci = fun (n : nat) NonZero[nat] {
+    var x : nat = 0;
+    var y : NonZero[nat] = 1;
+    var t : nat = _;
+
+    var i : nat = 0;
+    while i >< n loop {
+        t = y;
+        y = y + x;
+        x = t;
+        i = i + 1;
+    }
+
+    return y;
+};
