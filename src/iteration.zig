@@ -170,32 +170,32 @@ pub fn Iterator(comptime T: type) type {
             if (Type == Self) return iterable;
 
             // todo: support more cases and update test accordingly
-            // todo: refactor this unreadable mess
             return switch (info) {
                 .Pointer => |Pointer| switch (Pointer.size) {
                     .One => if (Pointer.child == Self) iterable.* else {
                         const child_info = @typeInfo(Pointer.child);
-                        switch (child_info) {
-                            .Struct, .Enum, .Union, .Opaque => if (@hasDecl(Pointer.child, "asIterator")) {
-                                const asIterator = @field(Pointer.child, "asIterator");
-                                return switch (@TypeOf(asIterator)) {
-                                    fn (Pointer.child) Self => asIterator(iterable.*),
-                                    fn (*const Pointer.child) Self => asIterator(iterable),
-                                    fn (*Pointer.child) Self => if (Pointer.is_const) 
-                                        fromIterableError(Type)
-                                     else asIterator(iterable),
-                                    else => {
-                                        @compileLog(@TypeOf(asIterator));
-                                        fromIterableError(Type);
-                                    },
-                                };
-                            },
+                        return switch (child_info) {
+                            .Struct, .Enum, .Union, .Opaque => fromPointerToContainer(iterable),
                             else => fromIterableError(Type),
-                        }
+                        };
                     },
                     else => fromIterableError(Type),
                 },
                 else => fromIterableError(Type),
+            };
+        }
+
+        inline fn fromPointerToContainer(pointer: anytype) Self {
+            const Pointer = @TypeOf(pointer);
+            const Container = @typeInfo(Pointer).Pointer.child;
+            const asIterator = if (@hasDecl(Container, "asIterator"))
+                Container.asIterator
+            else
+                fromIterableError(Pointer);
+            return switch (@TypeOf(asIterator)) {
+                fn (Container) Self => asIterator(pointer.*),
+                fn (*const Container) Self, fn (*Container) Self => asIterator(pointer),
+                else => fromIterableError(Pointer),
             };
         }
 
@@ -206,6 +206,31 @@ pub fn Iterator(comptime T: type) type {
             );
         }
     };
+}
+
+test Iterator {
+    const expect = std.testing.expectEqualStrings;
+    var slice_peeker = SlicePeeker(u8, false) {
+        .slice = "Hello world!\n",
+    };
+
+    const iterator = Iterator([]const u8).fromIterable(&slice_peeker);
+
+    try expect("Hello world!\n", iterator.next().?);
+    try expect("ello world!\n", iterator.next().?);
+    try expect("llo world!\n", iterator.next().?);
+    try expect("lo world!\n", iterator.next().?);
+    try expect("o world!\n", iterator.next().?);
+    try expect(" world!\n", iterator.next().?);
+    try expect("world!\n", iterator.next().?);
+    try expect("orld!\n", iterator.next().?);
+    try expect("rld!\n", iterator.next().?);
+    try expect("ld!\n", iterator.next().?);
+    try expect("d!\n", iterator.next().?);
+    try expect("!\n", iterator.next().?);
+    try expect("\n", iterator.next().?);
+    try std.testing.expectEqualDeep(iterator.next(), null);
+    
 }
 
 pub fn PeekableIterator(comptime T: type) type {
