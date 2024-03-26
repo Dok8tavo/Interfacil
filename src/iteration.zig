@@ -169,7 +169,7 @@ pub fn Iterator(comptime T: type) type {
             const info = @typeInfo(Type);
             if (Type == Self) return iterable;
 
-            // todo: support more cases and update test accordingly
+            // todo: support more cases, better errors, and update tests accordingly
             return switch (info) {
                 .Pointer => |Pointer| switch (Pointer.size) {
                     .One => if (Pointer.child == Self) iterable.* else {
@@ -179,6 +179,7 @@ pub fn Iterator(comptime T: type) type {
                             else => fromIterableError(Type),
                         };
                     },
+
                     else => fromIterableError(Type),
                 },
                 else => fromIterableError(Type),
@@ -210,7 +211,7 @@ pub fn Iterator(comptime T: type) type {
 
 test Iterator {
     const expect = std.testing.expectEqualStrings;
-    var slice_peeker = SlicePeeker(u8, false) {
+    var slice_peeker = SlicePeeker(u8, false){
         .slice = "Hello world!\n",
     };
 
@@ -230,7 +231,6 @@ test Iterator {
     try expect("!\n", iterator.next().?);
     try expect("\n", iterator.next().?);
     try std.testing.expectEqualDeep(iterator.next(), null);
-    
 }
 
 pub fn PeekableIterator(comptime T: type) type {
@@ -339,8 +339,8 @@ pub fn Peekable(
         pub usingnamespace Iterable(Self, struct {
             pub const Item = T;
             pub fn next(self: VarSelf) ?Item {
-                const item = self.peek() orelse return null;
-                self.skip();
+                const item = peek(contract.asSelf(self)) orelse return null;
+                skip(self);
                 return item;
             }
         }, options);
@@ -372,7 +372,7 @@ pub fn Peeker(comptime T: type) type {
             const Type = @TypeOf(peekable);
 
             if (Type == Self) return peekable;
-            if (@hasDecl(Type, "asPeeker")) {
+            if (std.meta.hasMethod(Type, "asPeeker")) {
                 const asPeeker = @field(Type, "asPeeker");
                 if (@TypeOf(asPeeker) == fn (*Type) Self) {
                     return asPeeker(peekable);
@@ -582,6 +582,34 @@ pub fn MultIterator(comptime T: type) type {
             }
         }, .{});
     };
+}
+
+test MultIterator {
+    const expect = std.testing.expectEqualDeep;
+    var slice_peeker1 = SlicePeeker(usize, false).from(&.{ 0, 1, 2 });
+    var slice_peeker2 = SlicePeeker(usize, false).from(&.{ 3, 4 });
+    var slice_peeker3 = SlicePeeker(usize, false).from(&.{ 5, 6, 7 });
+    var item_peeker1 = slice_peeker1.asItemPeeker();
+    var item_peeker2 = slice_peeker2.asItemPeeker();
+    var item_peeker3 = slice_peeker3.asItemPeeker();
+    var slice_iter_peeker = SlicePeeker(Iterator(usize), false).from(&.{
+        item_peeker1.asIterator(),
+        item_peeker2.asIterator(),
+        item_peeker3.asIterator(),
+    });
+
+    var multiterator = MultIterator(usize){
+        .iterators = Peeker(Iterator(usize)).fromPeekable(&slice_iter_peeker),
+    };
+
+    try expect(multiterator.next(), 0);
+    try expect(multiterator.next(), 1);
+    try expect(multiterator.next(), 2);
+    try expect(multiterator.next(), 3);
+    try expect(multiterator.next(), 4);
+    try expect(multiterator.next(), 5);
+    try expect(multiterator.next(), 6);
+    try expect(multiterator.next(), 7);
 }
 
 pub fn MultPeeker(comptime T: type) type {
