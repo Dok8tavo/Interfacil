@@ -24,20 +24,20 @@ const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
     // options
-    const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
 
     // artifacts
     const library = b.addStaticLibrary(.{
         .name = "interfacil",
+        .optimize = optimize,
         .root_source_file = b.path("src/root.zig"),
         .target = target,
-        .optimize = optimize,
     });
 
     _ = b.addModule("interfacil", .{
-        .root_source_file = b.path("src/interfacil.zig"),
         .optimize = optimize,
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
     });
 
@@ -47,8 +47,23 @@ pub fn build(b: *std.Build) !void {
         .source_dir = library.getEmittedDocs(),
     });
 
+    const build_tests = b.addTest(.{
+        .root_source_file = b.path("src/root.zig"),
+        .optimize = optimize,
+        .target = target,
+    });
+
+    const run_tests = b.addRunArtifact(build_tests);
+
     // steps
+    run_tests.step.dependOn(&build_tests.step);
+
     b.installArtifact(library);
-    b.step("docs", "This step emits documentation").dependOn(&documentation.step);
-    b.step("check", "This step is ran by zls to speed it up").dependOn(&library.step);
+
+    b.step("zls_step", "Ran by zls to speed it up").dependOn(&library.step);
+    b.step("docs", "Emit documentation").dependOn(&documentation.step);
+    b.step("test", "Build & run tests").dependOn(&run_tests.step);
+
+    // when on release mode, depends on tests!
+    if (optimize != .Debug) library.step.dependOn(&run_tests.step);
 }

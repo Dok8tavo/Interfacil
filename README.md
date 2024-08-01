@@ -1,6 +1,6 @@
 # Interfacil
 
-Interfacil is a Zig package for making and using interfaces easily in Zig. It's currently in rewritting, because the possible removal of the `usingnamespace` keyword.
+Interfacil is a Zig package for making and using interfaces easily in Zig. I'm doing a rewrite because the possible removal of the `usingnamespace` keyword.
 
 Here are a few projects with similar purpose:
 
