@@ -1,75 +1,54 @@
+// MIT License
+//
+// Copyright (c) 2024 Dok8tavo
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
+    // options
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
+    // artifacts
+    const library = b.addStaticLibrary(.{
         .name = "interfacil",
+        .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
-        .root_source_file = .{ .path = "src/interfacil.zig" },
     });
 
-    const doc = b.addInstallDirectory(.{
-        .source_dir = lib.getEmittedDocs(),
+    _ = b.addModule("interfacil", .{
+        .root_source_file = b.path("src/interfacil.zig"),
+        .optimize = optimize,
+        .target = target,
+    });
+
+    const documentation = b.addInstallDirectory(.{
         .install_dir = .prefix,
-        .install_subdir = "doc",
+        .install_subdir = "docs",
+        .source_dir = library.getEmittedDocs(),
     });
 
-    const tests = b.addTest(.{
-        .optimize = optimize,
-        .target = target,
-        .root_source_file = .{ .path = "src/interfacil.zig" },
-    });
-
-    const test_step = b.step("test", "Run all tests");
-    const run_tests = b.addRunArtifact(tests);
-    test_step.dependOn(&run_tests.step);
-
-    const doc_step = b.step("doc", "Generate documentation");
-    doc_step.dependOn(&lib.step);
-    doc_step.dependOn(&doc.step);
-
-    const interfacil = b.addModule("interfacil", .{
-        .root_source_file = .{ .path = "src/interfacil.zig" },
-    });
-
-    const examples_path = b.pathFromRoot("src/examples/");
-    const examples_dir = try std.fs.openDirAbsolute(examples_path, .{ .iterate = true });
-    var walker = examples_dir.walk(b.allocator) catch @panic("OOM!");
-
-    while (walker.next() catch @panic("OOM!")) |entry| if (entry.kind == .file and std.mem.endsWith(u8, entry.basename, ".zig")) {
-        const name = entry.basename[0 .. entry.basename.len - ".zig".len];
-        const example = b.addExecutable(.{
-            .name = name,
-            .target = target,
-            .optimize = optimize,
-            .root_source_file = .{ .path = std.fmt.allocPrint(
-                b.allocator,
-                "{s}/{s}",
-                .{ examples_path, entry.path },
-            ) catch @panic("OOM!") },
-        });
-
-        example.root_module.addImport("interfacil", interfacil);
-
-        const run_example = b.addRunArtifact(example);
-        if (b.args) |args| run_example.addArgs(args);
-        const step = b.step(
-            std.fmt.allocPrint(
-                b.allocator,
-                "interfacil-example-{s}",
-                .{name},
-            ) catch @panic("OOM!"),
-            std.fmt.allocPrint(
-                b.allocator,
-                "Build & Run the interfacil example \"{s}\".",
-                .{name},
-            ) catch @panic("OOM!"),
-        );
-
-        step.dependOn(&run_example.step);
-        run_example.step.dependOn(&example.step);
-    };
+    // steps
+    b.installArtifact(library);
+    b.step("docs", "This step emits documentation").dependOn(&documentation.step);
+    b.step("check", "This step is ran by zls to speed it up").dependOn(&library.step);
 }

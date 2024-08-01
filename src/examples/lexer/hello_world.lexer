@@ -1,3 +1,0 @@
-let main = fun (_ : list[str]) void {
-    std.io.out.print["Hello world!\n"]();
-};
