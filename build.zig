@@ -23,21 +23,26 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
+    const root_source_file = b.path("src/interfacil.zig");
+
     // options
     const optimize = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
+    const Naming = enum { full, short };
+    const naming = b.option(Naming, "naming", "full or short") orelse
+        if (optimize == .ReleaseSafe) Naming.full else Naming.short;
 
     // artifacts
     const library = b.addStaticLibrary(.{
         .name = "interfacil",
         .optimize = optimize,
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = root_source_file,
         .target = target,
     });
 
-    _ = b.addModule("interfacil", .{
+    const module = b.addModule("interfacil", .{
         .optimize = optimize,
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = root_source_file,
         .target = target,
     });
 
@@ -48,7 +53,7 @@ pub fn build(b: *std.Build) !void {
     });
 
     const build_tests = b.addTest(.{
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = root_source_file,
         .optimize = optimize,
         .target = target,
     });
@@ -57,6 +62,8 @@ pub fn build(b: *std.Build) !void {
 
     // steps
     run_tests.step.dependOn(&build_tests.step);
+    documentation.step.dependOn(&library.step);
+    documentation.step.dependOn(&build_tests.step);
 
     b.installArtifact(library);
 
@@ -66,4 +73,21 @@ pub fn build(b: *std.Build) !void {
 
     // when on release mode, depends on tests!
     if (optimize != .Debug) library.step.dependOn(&run_tests.step);
+
+    // config module
+    const options = b.addOptions();
+    options.addOption(
+        Naming,
+        "naming",
+        naming,
+    );
+
+    const config_module = options.createModule();
+    const config_name = "config";
+    module.addImport(config_name, config_module);
+    library.root_module.addImport(config_name, config_module);
+    build_tests.root_module.addImport(config_name, config_module);
+
+    // until I understande what's going on with autodoc caching
+    // const remove_docs = b.addRemoveDirTree();
 }

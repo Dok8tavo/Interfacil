@@ -20,15 +20,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-const ifl = @import("root.zig");
+const config = @import("config");
+const ifl = @import("interfacil.zig");
 const std = @import("std");
+
+pub const ContractOptions = struct {
+    implementation_field: ?ifl.EnumLiteral = null,
+    naming: @TypeOf(config.naming) = config.naming,
+};
 
 pub inline fn Contract(
     comptime Contractor: type,
-    comptime field: ifl.EnumLiteral,
     comptime clauses: anytype,
+    comptime options: ContractOptions,
 ) type {
     const Clauses = @TypeOf(clauses);
+    const unwrapped_implementation_field = options.implementation_field orelse ifl.compileError(
+        "Some interface of the `{s}` type requires an implementation field!",
+        .{switch (options.naming) {
+            .full => @typeName(Contractor),
+            .short => shortName(@typeName(Contractor)),
+        }},
+    );
+
     return struct {
         // --- Clauses ---
         pub inline fn default(
@@ -43,8 +57,8 @@ pub inline fn Contract(
         pub inline fn require(comptime clause: ifl.EnumLiteral, comptime Clause: type) Clause {
             const name: []const u8 = @tagName(clause);
             if (!hasClause(clause)) ifl.compileError(
-                "{s} requires a `.{s}` clause of type `{s}`!",
-                .{ implementation_name, name, @typeName(Clause) },
+                "`{s}` requires a `.{s}` clause of type `{s}`!",
+                .{ naming.interface, name, @typeName(Clause) },
             );
 
             return typeChecked(name, Clause);
@@ -54,36 +68,127 @@ pub inline fn Contract(
             return @hasField(Clauses, @tagName(clause));
         }
 
-        pub inline fn hasClauseTyped(comptime clause: ifl.EnumLiteral, comptime Clause: type) bool {
+        pub inline fn hasClauseTyped(
+            comptime clause: ifl.EnumLiteral,
+            comptime Clause: type,
+        ) bool {
             return hasClause(clause) and Clause == @TypeOf(@field(
                 clauses,
                 @tagName(clause),
             ));
         }
 
+        // --- Implementation ---
+        /// This function takes the implementation, _i.e._ the field implementing the interface, as
+        /// a parameter; and returns the contractor, _i.e._ its parent struct.
+        pub inline fn contractorFromImplementation(implementation: *Implementation) *Contractor {
+            return @alignCast(@fieldParentPtr(naming.implementation_field, implementation));
+        }
+
+        /// The `Implementation` type is the type of the implementation field. It's also the result
+        /// of the interface function.
+        pub const Implementation = @TypeOf(@field(
+            @as(Contractor, undefined),
+            naming.implementation_field,
+        ));
+
+        // --- Names ---
+        pub const naming = struct {
+            pub const implementation_field = @tagName(unwrapped_implementation_field);
+
+            pub const implementation_type_full = @typeName(Implementation);
+            pub const contractor_type_full = @typeName(Contractor);
+
+            pub const implementation_type_short = shortName(implementation_type_full);
+            pub const contractor_type_short = shortName(contractor_type_full);
+
+            pub const interface_full =
+                contractor_type_full ++ " => [" ++
+                implementation_field ++ ": " ++
+                implementation_type_full ++ "(...)]";
+
+            pub const interface_short =
+                contractor_type_short ++ " => [" ++
+                implementation_field ++ ": " ++
+                implementation_type_short ++ "(...)]";
+
+            pub const implementation_type = switch (options.naming) {
+                .full => implementation_type_full,
+                .short => implementation_type_short,
+            };
+
+            pub const contractor_type = switch (options.naming) {
+                .full => contractor_type_full,
+                .short => contractor_type_short,
+            };
+
+            pub const interface = switch (options.naming) {
+                .full => interface_full,
+                .short => interface_short,
+            };
+        };
+
+        // This function is inlined in order to improve debugging messages
         inline fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
             const Clause = @TypeOf(clause);
             if (Clause != Type) ifl.compileError(
-                "{s} requires `.{s}` to be of type `{s}`, not `{s}`!",
-                .{ implementation_name, name, @typeName(Type), @typeName(Clause) },
+                "`{s}` requires `.{s}` to be of type `{s}`, not `{s}`!",
+                .{ naming.interface, name, @typeName(Type), @typeName(Clause) },
             );
 
             return clause;
         }
+    };
+}
 
-        pub fn contractorFromInterface(interface: *Interface) *Contractor {
-            return @alignCast(@fieldParentPtr(field_name, interface));
+/// This function assumes no @"" shenanigans from type names, it also assumes those types
+/// are user defined.
+inline fn shortName(comptime type_name: []const u8) []const u8 {
+    var index = type_name.len - 1;
+    var parenthese_nesting: usize = 0;
+    var in_string = false;
+    var in_char = false;
+    while (index != 0) : (index -= 1) {
+        var c = type_name[index];
+        if (in_string) {
+            if (c == '\\') index += 1;
+            if (c == '"') in_string = false;
+            continue;
         }
 
-        pub const field_name = @tagName(field);
-        pub const interface_name = @typeName(Interface);
-        pub const contractor_name = @typeName(Contractor);
-        pub const implementation_name = std.fmt.comptimePrint(
-            "{s}[{s}.{s}]",
-            .{ contractor_name, interface_name, field_name },
-        );
+        if (in_char) {
+            if (c == '\\') index += 1;
+            if (c == '\'') in_char = false;
+            continue;
+        }
 
-        pub const Interface: type = @TypeOf(@field(@as(Contractor, undefined), field_name));
-    };
+        if (c == '(') parenthese_nesting -= 1;
+        if (c == ')') parenthese_nesting += 1;
+        if (parenthese_nesting != 0) continue;
+
+        if (std.ascii.isAlphanumeric(c) or c == '_') {
+            const end_index = index + 1;
+            while (std.ascii.isAlphanumeric(c) or c == '_') {
+                index -= 1;
+                c = type_name[index];
+            }
+
+            return type_name[index + 1 .. end_index];
+        }
+    }
+
+    unreachable;
+}
+
+test shortName {
+    const expect = std.testing.expectEqualStrings;
+    try expect("Contractor", shortName("file.Container.Contractor"));
+    try expect("Generic", shortName("file.Generic(argument)"));
+    try expect("Interface", shortName(
+        \\file.Interface(file.Contractor, .{ .clause = "clause" }, .{ .option = 'o' }),
+    ));
+    try expect("Interface", shortName(
+        \\file.Interface(file.Contractor, .{ .weird_clause = "some weird \"clause\", if I may say" }, .{})
+    ));
 }

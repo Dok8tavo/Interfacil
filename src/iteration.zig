@@ -20,75 +20,89 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-const ifl = @import("root.zig");
+const ifl = @import("interfacil.zig");
 const std = @import("std");
 
 const Contract = ifl.Contract;
+const ContractOptions = ifl.contracts.ContractOptions;
 
-pub const IteratorOptions = struct {
-    field: ifl.EnumLiteral = .as_iterator,
-};
-
-pub fn Iterator(
+pub inline fn Iterator(
     comptime Contractor: type,
     comptime clauses: anytype,
-    comptime options: IteratorOptions,
+    comptime options: ContractOptions,
 ) type {
-    const contract = Contract(Contractor, options.field, clauses);
-    const ItemClause = contract.require(.Item, type);
-    const nextClause = contract.require(.next, fn (*Contractor) ?ItemClause);
     return struct {
+        pub const contract = Contract(Contractor, clauses, ContractOptions{
+            .implementation_field = options.implementation_field orelse .as_iterator,
+            .naming = options.naming,
+        });
+
         const Self = @This();
+
+        const ItemClause = contract.require(.Item, type);
+        const nextClause = contract.require(.next, fn (*Contractor) ?ItemClause);
 
         pub const Item = ItemClause;
 
         pub fn next(self: *Self) ?Item {
-            const contractor = contract.contractorFromInterface(self);
+            const contractor = contract.contractorFromImplementation(self);
             return nextClause(contractor);
         }
 
         pub fn skip(self: *Self) void {
             _ = self.next();
         }
+
+        pub fn skipMany(self: *Self, n: usize) void {
+            for (0..n) |_| if (self.next() == null) break;
+        }
+
+        pub fn consumeIntoBuffer(self: *Self, buffer: []Item) error{BufferTooSmall}![]Item {
+            return for (0..buffer.len) |index| {
+                const item = self.next() orelse break buffer[0..index];
+                buffer[index] = item;
+            } else if (self.next() == null) buffer else error.BufferTooSmall;
+        }
     };
 }
 
-test {
-    const ByteIterator = struct {
+test Iterator {
+    const expect = std.testing.expectEqual;
+    const Bytes = struct {
         as_iterator: AsIterator = .{},
-        as_capital_iterator: AsCapitalIterator = .{},
-        bytes: []const u8 = "Hello, World!",
+        bytes: []const u8,
         index: usize = 0,
 
-        const AsIterator = Iterator(@This(), .{
+        const AsIterator = Iterator(Self, .{
             .Item = u8,
-            .next = next,
+            .next = nextByte,
         }, .{});
+        const Self = @This();
 
-        const AsCapitalIterator = Iterator(@This(), .{
-            .Item = u8,
-            .next = nextCapital,
-        }, .{ .field = .as_capital_iterator });
-
-        pub fn next(self: *@This()) ?u8 {
+        fn nextByte(self: *Self) ?u8 {
             if (self.index == self.bytes.len) return null;
             defer self.index += 1;
             return self.bytes[self.index];
         }
-
-        pub fn nextCapital(self: *@This()) ?u8 {
-            return while (self.next()) |c| {
-                if (std.ascii.isUpper(c)) break c;
-            } else null;
-        }
     };
 
-    var byte_iterator = ByteIterator{};
+    var bytes = Bytes{ .bytes = "Hello world! How are you?" };
+    try expect('H', bytes.as_iterator.next());
+    try expect('e', bytes.as_iterator.next());
+    try expect('l', bytes.as_iterator.next());
+    try expect('l', bytes.as_iterator.next());
+    try expect('o', bytes.as_iterator.next());
+    bytes.as_iterator.skip(); // skipping " "
+    try expect('w', bytes.as_iterator.next());
+    bytes.as_iterator.skipMany(0); // skiping nothing
+    try expect('o', bytes.as_iterator.next());
+    bytes.as_iterator.skipMany(1); // skipping "r"
+    try expect('l', bytes.as_iterator.next());
+    bytes.as_iterator.skipMany(2); // skipping "d!"
+    try expect(' ', bytes.as_iterator.next());
 
-    try std.testing.expectEqual('H', byte_iterator.as_iterator.next());
-    try std.testing.expectEqual('e', byte_iterator.as_iterator.next());
-    byte_iterator.as_iterator.skip();
-    byte_iterator.as_iterator.skip();
-    try std.testing.expectEqual('o', byte_iterator.as_iterator.next());
-    try std.testing.expectEqual('W', byte_iterator.as_capital_iterator.next());
+    const expected_end = "How are you?";
+    var buffer: [expected_end.len]u8 = undefined;
+    const end = try bytes.as_iterator.consumeIntoBuffer(&buffer);
+    try std.testing.expectEqualStrings(expected_end, end);
 }
