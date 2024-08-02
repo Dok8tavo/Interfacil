@@ -1,15 +1,14 @@
-# Interfacil
+# Glossary
 
-Interfacil is a Zig package for making and using interfaces easily in Zig. I'm doing a rewrite because the possible removal of the `usingnamespace` keyword.
+| Term             | Definition                                                                                         |
+|------------------|----------------------------------------------------------------------------------------------------|
+| _Contract_       | The _contract_ of an interface is the set of clauses a contractor type must fulfill.               |
+| _Contractor_     | The _contractor_ is a type that implements an interface.                                           |
+| _Clause_         | A _clause_ is a value that a contractor should provide in order to implement an interface.         |
+| _Interface_      | An _interface_ is a function that returns a type, meant to be a field modifying its parent struct. |
+| _Implementation_ | An _implementation_ is a field of a struct whose type is the result of an interface.               |
 
-Here are a few projects with similar purpose:
-
-- [zig_interfaces by yglcode](https://github.com/yglcode/zig_interfaces),
-- [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
-- [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
-
-
-## 📃 License
+## License
 
 MIT License
 
@@ -31,4 +30,4 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+SOFTWARE
