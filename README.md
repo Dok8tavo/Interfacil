@@ -1,4 +1,4 @@
-# Interfacil
+# ⚡ Interfacil
 
 Interfacil is a Zig package for making and using interfaces easily in Zig. I'm doing a rewrite because the possible removal of the `usingnamespace` keyword.
 
@@ -8,6 +8,9 @@ Here are a few projects with similar purpose:
 - [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
+## 🧑‍🏭 Implemented interfaces
+
+- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L29-L33)
 
 ## 📃 License
 
