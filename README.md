@@ -8,9 +8,42 @@ Here are a few projects with similar purpose:
 - [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
-## 🧑‍🏭 Implemented interfaces
+## 🛠️ Usage
 
-- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L29-L33)
+Make sure you're using zig 0.13.0. If you have trouble managing your zig versions, I can recommand one of those:
+
+- [zvm](https://github.com/tristanisham/zvm)
+- [zigup](https://github.com/marler8997/zigup)
+
+### Fetching the interfacil package into your `build.zig.zon`
+
+In your project folder with your `build.zig` and `build.zig.zon`, run this command:
+
+```
+zig fetch --save=interfacil https://api.github.com/repos/Dok8tavo/Interfacil
+```
+
+### Getting the interfacil module inside your `build.zig`
+
+In your `build.zig` file, in the `fn (b: *std.Build) !void` function, write:
+
+```zig
+const interfacil = b.dependency("interfacil", .{}).module("interfacil");
+your_build_artifact.root_module.addImport("interfacil", interfacil);
+your_module.addImport("interfacil", interfacil);
+```
+
+After all of that, you can use interfacil in your source code by using `@import("interfacil")`.
+
+## 👍 Implemented interfaces
+
+- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L27-L31)
+  - `filter`
+  - `intoBuffer`
+  - `map`
+  - `next`
+  - `skip`
+  - `skipMany`
 
 ## 📃 License
 
