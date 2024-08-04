@@ -20,7 +20,7 @@ Make sure you're using zig 0.13.0. If you have trouble managing your zig version
 In your project folder with your `build.zig` and `build.zig.zon`, run this command:
 
 ```
-zig fetch --save=interfacil https://api.github.com/repos/Dok8tavo/Interfacil
+zig fetch --save=interfacil https://api.github.com/repos/Dok8tavo/Interfacil/tarball
 ```
 
 ### Getting the interfacil module inside your `build.zig`
