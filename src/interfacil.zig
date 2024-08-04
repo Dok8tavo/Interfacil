@@ -32,6 +32,10 @@ pub fn compileError(comptime fmt: []const u8, comptime args: anytype) noreturn {
     @compileError(std.fmt.comptimePrint(fmt, args));
 }
 
+pub fn cast(ptr: anytype, comptime T: type) *T {
+    return @ptrCast(@alignCast(ptr));
+}
+
 test {
     _ = contracts;
     _ = iteration;

@@ -25,26 +25,17 @@ const ifl = @import("interfacil.zig");
 const std = @import("std");
 
 pub const ContractOptions = struct {
-    implementation_field: ?ifl.EnumLiteral = null,
     naming: @TypeOf(config.naming) = config.naming,
+    interface_name: []const u8 = "AnonymousInterface",
 };
 
-pub inline fn Contract(
+pub fn Contract(
     comptime Contractor: type,
     comptime clauses: anytype,
     comptime options: ContractOptions,
 ) type {
     const Clauses = @TypeOf(clauses);
-    const unwrapped_implementation_field = options.implementation_field orelse ifl.compileError(
-        "Some interface of the `{s}` type requires an implementation field!",
-        .{switch (options.naming) {
-            .full => @typeName(Contractor),
-            .short => shortName(@typeName(Contractor)),
-        }},
-    );
-
     return struct {
-        // --- Clauses ---
         pub inline fn default(
             comptime clause: ifl.EnumLiteral,
             comptime default_clause: anytype,
@@ -58,7 +49,7 @@ pub inline fn Contract(
             const name: []const u8 = @tagName(clause);
             if (!hasClause(clause)) ifl.compileError(
                 "`{s}` requires a `.{s}` clause of type `{s}`!",
-                .{ naming.interface, name, @typeName(Clause) },
+                .{ interface_name, name, @typeName(Clause) },
             );
 
             return typeChecked(name, Clause);
@@ -78,63 +69,48 @@ pub inline fn Contract(
             ));
         }
 
-        // --- Implementation ---
-        /// This function takes the implementation, _i.e._ the field implementing the interface, as
-        /// a parameter; and returns the contractor, _i.e._ its parent struct.
-        pub inline fn contractorFromImplementation(implementation: *Implementation) *Contractor {
-            return @alignCast(@fieldParentPtr(naming.implementation_field, implementation));
+        pub const interface_name = contractor_name ++ "[" ++ options.interface_name ++ "]";
+        pub const contractor_name = typeName(Contractor);
+
+        pub fn overwrittenClauses(comptime overwrite: anytype) OverwrittenClauses(@TypeOf(overwrite)) {
+            return .{};
         }
 
-        /// The `Implementation` type is the type of the implementation field. It's also the result
-        /// of the interface function.
-        pub const Implementation = @TypeOf(@field(
-            @as(Contractor, undefined),
-            naming.implementation_field,
-        ));
+        pub fn OverwrittenClauses(comptime Overwrite: type) type {
+            comptime {
+                const Field = std.builtin.Type.StructField;
+                // TODO: better debugging
+                const overwrite_info = @typeInfo(Overwrite).Struct;
+                const clauses_info = @typeInfo(Clauses).Struct;
 
-        // --- Names ---
-        pub const naming = struct {
-            pub const implementation_field = @tagName(unwrapped_implementation_field);
+                var fields: []const Field = overwrite_info.fields;
+                for (clauses_info.fields) |field| {
+                    if (!@hasField(Clauses, field.name) and !@hasField(Overwrite, field.name))
+                        fields = fields ++ &[_]Field{field};
+                }
 
-            pub const implementation_type_full = @typeName(Implementation);
-            pub const contractor_type_full = @typeName(Contractor);
+                return @Type(.{ .Struct = std.builtin.Type.Struct{
+                    .decls = &.{},
+                    .fields = fields,
+                    .is_tuple = false,
+                    .layout = .auto,
+                } });
+            }
+        }
 
-            pub const implementation_type_short = shortName(implementation_type_full);
-            pub const contractor_type_short = shortName(contractor_type_full);
-
-            pub const interface_full =
-                contractor_type_full ++ " => [" ++
-                implementation_field ++ ": " ++
-                implementation_type_full ++ "(...)]";
-
-            pub const interface_short =
-                contractor_type_short ++ " => [" ++
-                implementation_field ++ ": " ++
-                implementation_type_short ++ "(...)]";
-
-            pub const implementation_type = switch (options.naming) {
-                .full => implementation_type_full,
-                .short => implementation_type_short,
+        fn typeName(comptime T: type) []const u8 {
+            comptime return switch (options.naming) {
+                .full => @typeName(T),
+                .short => shortName(@typeName(T)),
             };
+        }
 
-            pub const contractor_type = switch (options.naming) {
-                .full => contractor_type_full,
-                .short => contractor_type_short,
-            };
-
-            pub const interface = switch (options.naming) {
-                .full => interface_full,
-                .short => interface_short,
-            };
-        };
-
-        // This function is inlined in order to improve debugging messages
-        inline fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
+        fn typeChecked(comptime name: []const u8, comptime Type: type) Type {
             const clause = @field(clauses, name);
             const Clause = @TypeOf(clause);
             if (Clause != Type) ifl.compileError(
                 "`{s}` requires `.{s}` to be of type `{s}`, not `{s}`!",
-                .{ naming.interface, name, @typeName(Type), @typeName(Clause) },
+                .{ interface_name, name, @typeName(Type), @typeName(Clause) },
             );
 
             return clause;
