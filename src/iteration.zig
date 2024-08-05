@@ -43,13 +43,17 @@ pub fn Iterator(
             },
         );
 
-        // --- Next/Skip/intoBuffer ---
+        // --- Next/Skip ---
         pub const Item = contract.require(.Item, type);
         pub const IntoBufferError = error{BufferTooSmall};
 
         pub fn next(self: *Self) ?Item {
             const function = contract.require(.next, fn (*Contractor) ?Item);
             return function(&self.contractor);
+        }
+
+        pub fn nextUntil(self: *Self, comptime predicate: fn (Item) bool) ?Item {
+            return self.filter(predicate).next();
         }
 
         pub fn skip(self: *Self) void {
@@ -60,12 +64,25 @@ pub fn Iterator(
             for (0..n) |_| if (self.next() == null) break;
         }
 
+        // --- Consume ---
         pub fn intoBuffer(self: *Self, buffer: []Item) IntoBufferError![]Item {
             var index: usize = 0;
             return while (self.next()) |item| : (index += 1) {
                 if (buffer.len == index) break IntoBufferError.BufferTooSmall;
                 buffer[index] = item;
             } else buffer[0..index];
+        }
+
+        pub fn all(self: *Self, comptime predicate: fn (Item) bool) bool {
+            return while (self.next()) |item| {
+                if (!predicate(item)) break false;
+            } else true;
+        }
+
+        pub fn any(self: *Self, comptime predicate: fn (Item) bool) bool {
+            return while (self.next()) |item| {
+                if (predicate(item)) break true;
+            } else false;
         }
 
         // --- Filter ---
@@ -136,7 +153,7 @@ pub fn Iterator(
         }
 
         // --- Runtime ---
-        pub fn any(self: *Self) AnyIterator(Item) {
+        pub fn asAny(self: *Self) AnyIterator(Item) {
             return AnyIterator(Item){
                 .context = @ptrCast(@alignCast(self)),
                 .nextFn = struct {
@@ -281,8 +298,13 @@ pub fn AnyIterator(comptime T: type) type {
             .Item = Item,
         }, .{ .interface_name = "AnyIterator" });
 
+        // --- Next/Skip ---
         pub fn next(self: *Self) ?Item {
             return self.nextFn(self.context);
+        }
+
+        pub fn nextUntil(self: *Self, comptime predicate: fn (Item) bool) ?Item {
+            return self.asIterator().nextUntil(predicate);
         }
 
         pub fn skip(self: *Self) void {
@@ -293,12 +315,21 @@ pub fn AnyIterator(comptime T: type) type {
             self.asIterator().skipMany(n);
         }
 
+        // --- Consume ---
         pub fn intoBuffer(self: *Self, buffer: []Item) error{BufferTooSmall}![]Item {
-            return self.asIterator().intoBuffer(buffer);
+            return try self.asIterator().intoBuffer(buffer);
         }
 
+        pub fn all(self: *Self, comptime predicate: fn (Item) bool) bool {
+            return self.asIterator().all(predicate);
+        }
+
+        pub fn any(self: *Self, comptime predicate: fn (Item) bool) bool {
+            return self.asIterator().any(predicate);
+        }
+
+        // --- Filter ---
         pub const Filter = AsIterator.Filter;
-        pub const Map = AsIterator.Map;
 
         pub fn filter(
             self: *Self,
@@ -306,6 +337,10 @@ pub fn AnyIterator(comptime T: type) type {
         ) *Filter(predicate).AsIterator {
             return self.asIterator().filter(predicate);
         }
+
+        // --- Map ---
+        pub const Map = AsIterator.Map;
+        pub const MapInfer = AsIterator.MapInfer;
 
         pub fn map(
             self: *Self,
@@ -315,11 +350,16 @@ pub fn AnyIterator(comptime T: type) type {
             return self.asIterator().map(Target, predicate);
         }
 
+        pub fn mapInfer(self: *Self, comptime predicate: anytype) *MapInfer(predicate).AsIterator {
+            return self.asIterator().mapInfer(predicate);
+        }
+
+        // --- Conversion ---
         pub fn asIterator(self: *Self) *AsIterator {
             return ifl.cast(self, AsIterator);
         }
 
-        pub fn any(self: *Self) *Self {
+        pub fn asAny(self: *Self) *Self {
             return self;
         }
     };
