@@ -8,7 +8,7 @@ Here are a few projects with similar purpose:
 - [zimpl by permutationlock](https://github.com/permutationlock/zimpl),
 - [zig-interface by bluesillybeard](https://github.com/bluesillybeard/zig-interface),
 
-## 🛠️ Usage
+## ℹ️ Usage
 
 Make sure you're using zig 0.13.0. If you have trouble managing your zig versions, I can recommand one of those:
 
@@ -43,12 +43,20 @@ your_module.addImport("interfacil", interfacil);
 ## 👍 Implemented interfaces
 
 - [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L27-L31)
-  - `filter`
-  - `intoBuffer`
-  - `map`
-  - `next`
-  - `skip`
-  - `skipMany`
+  - `next`,
+  - `skip`,
+  - `skipMany`,
+  - `intoBuffer`,
+  - `filter`,
+  - `filterNext`,
+  - `filterSkip`,
+  - `filterSkipMany`,
+  - `filterIntoBuffer`,
+  - `filterMap`,
+  - `map`,
+  - `mapNext`,
+  - `mapIntoBuffer`,
+  - `mapFilter`.
 
 ## 📃 License
 
