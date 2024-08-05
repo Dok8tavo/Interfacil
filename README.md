@@ -42,13 +42,13 @@ your_module.addImport("interfacil", interfacil);
 
 ## 👍 Implemented interfaces
 
-- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L27-L31)
-  - `next`,
-  - `skip`,
-  - `skipMany`,
-  - `intoBuffer`,
-  - `filter`,
-  - `map`,
+- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L27-L31): from `next` get:
+  - `all/any`,
+  - `nall/none`,
+  - `collectAlloc/collectBuffer`,
+  - `filter` and more,
+  - `map` and more,
+  - `reduce` and more,
 
 ## 📃 License
 
