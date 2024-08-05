@@ -48,15 +48,7 @@ your_module.addImport("interfacil", interfacil);
   - `skipMany`,
   - `intoBuffer`,
   - `filter`,
-  - `filterNext`,
-  - `filterSkip`,
-  - `filterSkipMany`,
-  - `filterIntoBuffer`,
-  - `filterMap`,
   - `map`,
-  - `mapNext`,
-  - `mapIntoBuffer`,
-  - `mapFilter`.
 
 ## 📃 License
 
