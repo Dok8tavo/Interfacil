@@ -42,7 +42,7 @@ your_module.addImport("interfacil", interfacil);
 
 ## 👍 Implemented interfaces
 
-- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L27-L31): from `next` get:
+- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L30-L34): from `next` get:
   - `all/any`,
   - `nall/none`,
   - `collectAlloc/collectBuffer`,
