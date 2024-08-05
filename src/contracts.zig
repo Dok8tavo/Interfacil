@@ -81,11 +81,11 @@ pub fn Contract(
                 const Field = std.builtin.Type.StructField;
                 // TODO: better debugging
                 const overwrite_info = @typeInfo(Overwrite).Struct;
-                const clauses_info = @typeInfo(Clauses).Struct;
+                const original_info = @typeInfo(Clauses).Struct;
 
                 var fields: []const Field = overwrite_info.fields;
-                for (clauses_info.fields) |field| {
-                    if (!@hasField(Clauses, field.name) and !@hasField(Overwrite, field.name))
+                for (original_info.fields) |field| {
+                    if (!@hasField(Overwrite, field.name))
                         fields = fields ++ &[_]Field{field};
                 }
 
@@ -117,14 +117,41 @@ pub fn Contract(
         }
     };
 }
+test "Contract(...).overwrittenClauses" {
+    const contract = Contract(void, .{
+        .clause1 = 1,
+        .clause2 = 2,
+    }, .{});
+
+    const Overwritten = @TypeOf(contract.overwrittenClauses(.{
+        .clause2 = 3,
+        .clause3 = 4,
+    }));
+
+    try std.testing.expectEqual(3, (Overwritten{}).clause2);
+    try std.testing.expect(@hasField(Overwritten, "clause3"));
+
+    const another_contract = Contract(void, .{
+        .Item = u8,
+        .next = fn (void) u8,
+    }, .{});
+
+    const AnotherOverwritten = @TypeOf(another_contract.overwrittenClauses(.{
+        .next = fn (*anyopaque) u8,
+    }));
+
+    try std.testing.expectEqual(fn (*anyopaque) u8, (AnotherOverwritten{}).next);
+    try std.testing.expect(@hasField(AnotherOverwritten, "Item"));
+}
 
 /// This function assumes no @"" shenanigans from type names, it also assumes those types
 /// are user defined.
-inline fn shortName(comptime type_name: []const u8) []const u8 {
+fn shortName(comptime type_name: []const u8) []const u8 {
     var index = type_name.len - 1;
     var parenthese_nesting: usize = 0;
     var in_string = false;
     var in_char = false;
+
     while (index != 0) : (index -= 1) {
         var c = type_name[index];
         if (in_string) {

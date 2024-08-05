@@ -30,14 +30,14 @@ pub fn Iterator(
     options: contracts.ContractOptions,
 ) type {
     return struct {
-        pub const contract = contracts.Contract(Contractor, clauses, options);
-
         contractor: Contractor,
 
-        pub const Item = contract.require(.Item, type);
-        pub const BufferError = contract.default(.BufferError, error{BufferTooBig});
-
         const Self = @This();
+        pub const contract = contracts.Contract(Contractor, clauses, options);
+
+        // --- Next/Skip/intoBuffer ---
+        pub const Item = contract.require(.Item, type);
+        pub const IntoBufferError = error{BufferTooSmall};
 
         pub fn next(self: *Self) ?Item {
             const function = contract.require(.next, fn (*Contractor) ?Item);
@@ -45,22 +45,22 @@ pub fn Iterator(
         }
 
         pub fn skip(self: *Self) void {
-            const function = contract.default(.skip, defaultSkip);
-            function(&self.contractor);
+            _ = self.next();
         }
 
         pub fn skipMany(self: *Self, n: usize) void {
-            const function = contract.default(.skipMany, defaultSkipMany);
-            function(&self.contractor, n);
+            for (0..n) |_| if (self.next() == null) break;
         }
 
-        pub fn intoBuffer(self: *Self, buffer: []Item) BufferError![]Item {
-            const function = contract.default(.intoBuffer, defaultIntoBuffer);
-            return try function(&self.contractor, buffer);
+        pub fn intoBuffer(self: *Self, buffer: []Item) IntoBufferError![]Item {
+            var index: usize = 0;
+            return while (self.next()) |item| : (index += 1) {
+                if (buffer.len == index) break IntoBufferError.BufferTooSmall;
+                buffer[index] = item;
+            } else buffer[0..index];
         }
 
         // --- Filter ---
-
         pub fn filter(self: *Self, comptime predicate: fn (Item) bool) *Filter(predicate).AsIterator {
             return ifl.cast(self, Filter(predicate).AsIterator);
         }
@@ -69,37 +69,46 @@ pub fn Iterator(
             return struct {
                 iterator: Self,
 
-                pub const AsIterator = Iterator(@This(), .{
-                    .Item = u8,
-                    .next = nextFiltered,
-                }, options);
+                pub const AsIterator = Iterator(
+                    @This(),
+                    contract.overwrittenClauses(.{
+                        .next = nextFiltered,
+                    }),
+                    options,
+                );
 
-                fn nextFiltered(self: *@This()) ?u8 {
+                fn nextFiltered(self: *@This()) ?Item {
                     return while (self.iterator.next()) |item| {
                         if (predicate(item)) break item;
                     } else null;
-                }
-
-                pub fn asIterator(self: *@This()) *AsIterator {
-                    return ifl.cast(self, AsIterator);
                 }
             };
         }
 
         // --- Map ---
-
-        pub fn map(self: *Self, comptime Target: type, comptime predicate: fn (Item) Item) *Map(Target, predicate).AsIterator {
+        pub fn map(
+            self: *Self,
+            comptime Target: type,
+            comptime predicate: fn (Item) Item,
+        ) *Map(Target, predicate).AsIterator {
             return ifl.cast(self, Map(Target, predicate).AsIterator);
+        }
+
+        pub fn mapInfer(self: *Self, comptime predicate: anytype) *MapInfer(predicate).AsIterator {
+            return ifl.cast(self, MapInfer(predicate).AsIterator);
         }
 
         pub fn Map(comptime Target: type, comptime predicate: fn (Item) Target) type {
             return struct {
                 iterator: Self,
 
-                pub const AsIterator = Iterator(@This(), .{
-                    .Item = Target,
-                    .next = nextMapped,
-                }, options);
+                pub const AsIterator = Iterator(
+                    @This(),
+                    contract.overwrittenClauses(.{
+                        .next = nextMapped,
+                    }),
+                    options,
+                );
 
                 fn nextMapped(self: *@This()) ?Target {
                     return if (self.iterator.next()) |item| predicate(item) else null;
@@ -107,25 +116,28 @@ pub fn Iterator(
             };
         }
 
-        // --- default ---
+        pub fn MapInfer(comptime predicate: anytype) type {
+            const Predicate = @TypeOf(predicate);
+            const info = @typeInfo(Predicate);
+            if (info != .Fn) ifl.compileError(
+                "`{s}` requires `.{s}` to be a function, not `{s}`!",
+                .{ options.interface_name, @typeName(Predicate), @typeName(info) },
+            );
 
-        fn defaultIntoBuffer(contractor: *Contractor, buffer: []Item) BufferError![]Item {
-            const self = ifl.cast(contractor, Self);
-            var index: usize = 0;
-            return while (self.next()) |item| : (index += 1) {
-                if (buffer.len == index) break BufferError.BufferTooBig;
-                buffer[index] = item;
-            } else buffer[0..index];
+            return Map(info.Fn.return_type.?, predicate);
         }
 
-        fn defaultSkip(contractor: *Contractor) void {
-            const self = ifl.cast(contractor, Self);
-            _ = self.next();
-        }
-
-        fn defaultSkipMany(contractor: *Contractor, n: usize) void {
-            const self = ifl.cast(contractor, Self);
-            for (0..n) |_| if (self.next() == null) break;
+        // --- Runtime ---
+        pub fn any(self: *Self) AnyIterator(Item) {
+            return AnyIterator(Item){
+                .context = @ptrCast(@alignCast(self)),
+                .nextFn = struct {
+                    fn next(context: *anyopaque) ?Item {
+                        const iterator = ifl.cast(context, Self);
+                        return iterator.next();
+                    }
+                }.call,
+            };
         }
     };
 }
@@ -241,9 +253,66 @@ test "Iterator(...).map" {
 
     var bytes = Bytes{ .bytes = "Hello world! How are you?" };
     var iterator = bytes.asIterator()
-        .map(u8, Bytes.intoUpper);
+        .mapInfer(Bytes.intoUpper);
 
     var buffer: ["HELLO WORLD! HOW ARE YOU?".len]u8 = undefined;
     const result = try iterator.intoBuffer(&buffer);
     try std.testing.expectEqualStrings("HELLO WORLD! HOW ARE YOU?", result);
+}
+
+pub fn AnyIterator(comptime T: type) type {
+    return struct {
+        context: *anyopaque,
+        nextFn: *const fn (*anyopaque) ?T,
+
+        const Self = @This();
+
+        pub const Item = T;
+        pub const AsIterator = Iterator(Self, .{
+            .next = next,
+            .Item = Item,
+        }, .{ .interface_name = "AnyIterator" });
+
+        pub fn next(self: *Self) ?Item {
+            return self.nextFn(self.context);
+        }
+
+        pub fn skip(self: *Self) void {
+            self.asIterator().skip();
+        }
+
+        pub fn skipMany(self: *Self, n: usize) void {
+            self.asIterator().skipMany(n);
+        }
+
+        pub fn intoBuffer(self: *Self, buffer: []Item) error{BufferTooSmall}![]Item {
+            return self.asIterator().intoBuffer(buffer);
+        }
+
+        pub const Filter = AsIterator.Filter;
+        pub const Map = AsIterator.Map;
+
+        pub fn filter(
+            self: *Self,
+            comptime predicate: fn (Item) bool,
+        ) *Filter(predicate).AsIterator {
+            return self.asIterator().filter(predicate);
+        }
+
+        pub fn map(
+            self: *Self,
+            comptime Target: type,
+            comptime predicate: fn (Item) Target,
+        ) *Map(Target, predicate).AsIterator {
+            return self.asIterator().map(Target, predicate);
+        }
+
+        pub fn asIterator(self: *Self) *AsIterator {
+            return ifl.cast(self, AsIterator);
+        }
+
+        pub fn any(self: *Self) *Self {
+            return self;
+        }
+    };
 }
