@@ -27,6 +27,15 @@ const std = @import("std");
 pub const ContractOptions = struct {
     naming: @TypeOf(config.naming) = config.naming,
     interface_name: ?[]const u8 = null,
+
+    pub fn overwritten(self: ContractOptions, overwrite: anytype) ContractOptions {
+        var options = self;
+        inline for (@typeInfo(@TypeOf(overwrite)).Struct.fields) |field| {
+            @field(options, field.name) = @field(overwrite, field.name);
+        }
+
+        return options;
+    }
 };
 
 pub fn Contract(

@@ -42,13 +42,12 @@ your_module.addImport("interfacil", interfacil);
 
 ## 👍 Implemented interfaces
 
-- [Iterators](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L30-L34): from `next` get:
-  - `all/any`,
-  - `nall/none`,
-  - `collectAlloc/collectBuffer`,
-  - `filter` and more,
-  - `map` and more,
-  - `reduce` and more,
+- [Iterator](https://github.com/Dok8tavo/Interfacil/blob/main/src/iteration.zig#L30-L34): implement the `next` and get:
+  - `all/any/nall/none` to test for a predicate on all items,
+  - `collectAlloc/collectBuffer` to populate a slice with all items,
+  - `filter` and similar functions, to only yield items that satisfy a condition,
+  - `map` and similar functions, to process all items into something else before yielding them,
+  - `reduce` and similar functions, 
 
 ## 📃 License
 

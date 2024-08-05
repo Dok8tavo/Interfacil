@@ -39,11 +39,7 @@ pub fn Iterator(
         pub const contract = contracts.Contract(
             Contractor,
             clauses,
-            options: {
-                var new_options = options;
-                new_options.interface_name = new_options.interface_name orelse "Iterator";
-                break :options new_options;
-            },
+            options.overwritten(.{ .interface_name = options.interface_name orelse "Iterator" }),
         );
 
         // --- Next ---
@@ -206,36 +202,6 @@ pub fn Iterator(
         ) *Filter(predicate).AsIterator {
             return ifl.cast(self, Filter(predicate).AsIterator);
         }
-        pub fn filterNext(self: *Self, comptime predicate: fn (Item) bool) ?Item {
-            return self.filter(predicate).next();
-        }
-        pub fn filterSkip(self: *Self, comptime predicate: fn (Item) bool) void {
-            self.filter(predicate).skip();
-        }
-        pub fn filterSkipMany(self: *Self, comptime predicate: fn (Item) bool, n: usize) void {
-            self.filter(predicate).skipMany(n);
-        }
-        pub fn filterAll(
-            self: *Self,
-            comptime filter_predicate: fn (Item) bool,
-            comptime all_predicate: fn (Item) bool,
-        ) bool {
-            return self.filter(filter_predicate).all(all_predicate);
-        }
-        pub fn filterAny(
-            self: *Self,
-            comptime filter_predicate: fn (Item) bool,
-            comptime any_predicate: fn (Item) bool,
-        ) bool {
-            return self.filter(filter_predicate).any(any_predicate);
-        }
-        pub fn filterIntoBuffer(
-            self: *Self,
-            comptime predicate: fn (Item) bool,
-            buffer: []Item,
-        ) IntoBufferError![]Item {
-            return self.filter(predicate).collectBuffer(buffer);
-        }
 
         pub fn Filter(comptime predicate: fn (Item) bool) type {
             return struct {
@@ -265,37 +231,6 @@ pub fn Iterator(
         ) *Map(Target, predicate).AsIterator {
             return ifl.cast(self, Map(Target, predicate).AsIterator);
         }
-        pub fn mapNext(
-            self: *Self,
-            comptime Target: type,
-            comptime predicate: fn (Item) Target,
-        ) ?Item {
-            return self.map(Target, predicate).next();
-        }
-        pub fn mapAll(
-            self: *Self,
-            comptime Target: type,
-            comptime map_predicate: fn (Item) Target,
-            comptime all_predicate: fn (Target) bool,
-        ) bool {
-            return self.map(Target, map_predicate).all(all_predicate);
-        }
-        pub fn mapAny(
-            self: *Self,
-            comptime Target: type,
-            comptime map_predicate: fn (Item) Target,
-            comptime any_predicate: fn (Target) bool,
-        ) bool {
-            return self.map(Target, map_predicate).any(any_predicate);
-        }
-        pub fn mapIntoBuffer(
-            self: *Self,
-            comptime Target: type,
-            comptime predicate: fn (Item) Target,
-            buffer: []Target,
-        ) IntoBufferError![]Target {
-            return self.map(Target, predicate).collectBuffer(buffer);
-        }
 
         pub fn Map(comptime Target: type, comptime predicate: fn (Item) Target) type {
             return struct {
@@ -319,39 +254,6 @@ pub fn Iterator(
         pub fn mapInfer(self: *Self, comptime predicate: anytype) *MapInfer(predicate).AsIterator {
             return ifl.cast(self, MapInfer(predicate).AsIterator);
         }
-        pub fn mapInferNext(self: *Self, comptime predicate: anytype) ?Item {
-            return self
-                .map(TargetFromMapPredicate(predicate), predicate)
-                .next();
-        }
-        pub fn mapInferAll(
-            self: *Self,
-            comptime map_predicate: anytype,
-            comptime all_predicate: fn (TargetFromMapPredicate(map_predicate)) bool,
-        ) bool {
-            return self
-                .map(TargetFromMapPredicate(map_predicate), map_predicate)
-                .all(all_predicate);
-        }
-        pub fn mapInferAny(
-            self: *Self,
-            comptime map_predicate: anytype,
-            comptime any_predicate: fn (TargetFromMapPredicate(map_predicate)) bool,
-        ) bool {
-            return self
-                .map(TargetFromMapPredicate(map_predicate), map_predicate)
-                .any(any_predicate);
-        }
-        pub fn mapInferIntoBuffer(
-            self: *Self,
-            comptime map_predicate: anytype,
-            buffer: []TargetFromMapPredicate(map_predicate),
-        ) IntoBufferError![]Item {
-            return self
-                .map(TargetFromMapPredicate(map_predicate), map_predicate)
-                .collectBuffer(buffer);
-        }
-
         pub fn MapInfer(comptime predicate: anytype) type {
             const Target = TargetFromMapPredicate(predicate);
             return Map(Target, predicate);
