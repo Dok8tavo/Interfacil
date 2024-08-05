@@ -27,13 +27,21 @@ const std = @import("std");
 pub fn Iterator(
     comptime Contractor: type,
     comptime clauses: anytype,
-    options: contracts.ContractOptions,
+    comptime options: contracts.ContractOptions,
 ) type {
     return struct {
         contractor: Contractor,
 
         const Self = @This();
-        pub const contract = contracts.Contract(Contractor, clauses, options);
+        pub const contract = contracts.Contract(
+            Contractor,
+            clauses,
+            options: {
+                var new_options = options;
+                new_options.interface_name = new_options.interface_name orelse "Iterator";
+                break :options new_options;
+            },
+        );
 
         // --- Next/Skip/intoBuffer ---
         pub const Item = contract.require(.Item, type);

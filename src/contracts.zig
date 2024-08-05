@@ -26,7 +26,7 @@ const std = @import("std");
 
 pub const ContractOptions = struct {
     naming: @TypeOf(config.naming) = config.naming,
-    interface_name: []const u8 = "AnonymousInterface",
+    interface_name: ?[]const u8 = null,
 };
 
 pub fn Contract(
@@ -69,7 +69,7 @@ pub fn Contract(
             ));
         }
 
-        pub const interface_name = contractor_name ++ "[" ++ options.interface_name ++ "]";
+        pub const interface_name = contractor_name ++ "[" ++ options.interface_name orelse "AnonymousInterface" ++ "]";
         pub const contractor_name = typeName(Contractor);
 
         pub fn overwrittenClauses(comptime overwrite: anytype) OverwrittenClauses(@TypeOf(overwrite)) {
