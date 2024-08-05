@@ -62,29 +62,48 @@ pub fn Iterator(
         }
 
         // --- Algebra ---
+        /// This function consumes the iterator until it finds an item that doesn't satisfy the
+        /// predicate.
+        ///
+        /// It returns `∀ item ∈ self : predicate(item)`
         pub fn all(self: *Self, comptime predicate: fn (Item) bool) bool {
             return while (self.next()) |item| {
                 if (!predicate(item)) break false;
             } else true;
         }
+
+        /// This function consumes the iterator until it finds an item that satisfy the predicate.
+        ///
+        /// It returns `∃ item ∈ self : predicate(item)`
         pub fn any(self: *Self, comptime predicate: fn (Item) bool) bool {
             return while (self.next()) |item| {
                 if (predicate(item)) break true;
             } else false;
         }
+
+        /// This function consumes the iterator until it finds an item that satisfy the predicate.
+        ///
+        /// It returns `∄ item ∈ self : predicate(item)`
         pub fn none(self: *Self, comptime predicate: fn (Item) bool) bool {
             return !self.any(predicate);
         }
+        /// This function consumes the iterator until it finds an item that doesn't satisfy the
+        /// predicate.
+        ///
+        /// It returns `¬∀ item ∈ self : predicate(item)`
         pub fn nall(self: *Self, comptime predicate: fn (Item) bool) bool {
             return !self.all(predicate);
         }
 
         // --- Collect ---
+        /// This function consumes the iterator entirely. The caller owns the result.
         pub fn collectAlloc(self: *Self, allocator: Allocator) Allocator.Error!ArrayList(Item) {
             var list = ArrayList(Item).init(allocator);
             while (self.next()) |item| try list.append(item);
             return list;
         }
+        /// This function consumes the iterator entirely, or until the buffer is full. The result
+        /// points to the part of the buffer that contains the collected items.
         pub fn collectBuffer(self: *Self, buffer: []Item) IntoBufferError![]Item {
             var index: usize = 0;
             return while (self.next()) |item| : (index += 1) {
@@ -94,6 +113,9 @@ pub fn Iterator(
         }
 
         // --- Reduce ---
+
+        /// This function consumes the iterator entirely.
+        /// Left reducing goes `(a, (b, (...)))`.
         pub fn reduceLeftAllInto(
             self: *Self,
             comptime predicate: fn (Item, Item) Item,
@@ -101,6 +123,8 @@ pub fn Iterator(
         ) void {
             while (self.next()) |item| into.* = predicate(item, into.*);
         }
+        /// This function consumes the iterator entirely.
+        /// Right reducing goes `(((...), y), z)`.
         pub fn reduceRightAllInto(
             self: *Self,
             comptime predicate: fn (Item, Item) Item,
@@ -108,7 +132,9 @@ pub fn Iterator(
         ) void {
             while (self.next()) |item| into.* = predicate(into.*, item);
         }
-
+        /// This funciton consumes `n` items from the iterator, or the iterator entirely if `n` is
+        /// greater than the number of items in the iterator.
+        /// Left reducing goes `(a, (b, (...)))`.
         pub fn reduceLeftManyInto(
             self: *Self,
             comptime predicate: fn (Item, Item) Item,
@@ -119,6 +145,9 @@ pub fn Iterator(
                 into.* = predicate(item, into.*);
             } else break;
         }
+        /// This funciton consumes `n` items from the iterator, or the iterator entirely if `n` is
+        /// greater than the number of items in the iterator.
+        /// Right reducing goes `(((...), y), z)`.
         pub fn reduceRightManyInto(
             self: *Self,
             comptime predicate: fn (Item, Item) Item,
@@ -130,17 +159,27 @@ pub fn Iterator(
             } else break;
         }
 
+        /// This function consumes the iterator entirely.
+        /// Left reducing goes `(a, (b, (...)))`.
+        /// If the iterator is empty, it returns `null`.
         pub fn reduceLeftAll(self: *Self, comptime predicate: fn (Item, Item) Item) ?Item {
             var into = self.next() orelse return null;
             self.reduceLeftAllInto(predicate, &into);
             return into;
         }
+        /// This function consumes the iterator entirely.
+        /// Right reducing goes `(((...), y), z)`.
+        /// If the iterator is empty, it returns `null`.
         pub fn reduceRightAll(self: *Self, comptime predicate: fn (Item, Item) Item) ?Item {
             var into = self.next() orelse return null;
             self.reduceRightAllInto(predicate, &into);
             return into;
         }
 
+        /// This funciton consumes `n` items from the iterator, or the iterator entirely if `n` is
+        /// greater than the number of items in the iterator.
+        /// Left reducing goes `(a, (b, (...)))`.
+        /// If the iterator is empty, it returns `null`.
         pub fn reduceLeftMany(self: *Self, comptime predicate: fn (Item, Item) Item, n: usize) ?Item {
             if (n == 0) return null;
             var into = self.next() orelse return null;
@@ -148,6 +187,10 @@ pub fn Iterator(
             self.reduceLeftManyInto(predicate, n - 1, &into);
             return into;
         }
+        /// This funciton consumes `n` items from the iterator, or the iterator entirely if `n` is
+        /// greater than the number of items in the iterator.
+        /// Right reducing goes `(((...), y), z)`.
+        /// If the iterator is empty, it returns `null`.
         pub fn reduceRightMany(self: *Self, comptime predicate: fn (Item, Item) Item, n: usize) ?Item {
             if (n == 0) return null;
             var into = self.next() orelse return null;
